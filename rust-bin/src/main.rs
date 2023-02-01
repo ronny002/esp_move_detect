@@ -1,6 +1,6 @@
 use esp_idf_hal::modem::Modem;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
-use esp_idf_sys::{self as _}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
+use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 
 use anyhow:: Result;
 
@@ -36,7 +36,7 @@ fn main() {
 
     let peripherals = Peripherals::take().unwrap();
     let mut move_input =
-        PinDriver::input(peripherals.pins.gpio12).expect("couldn't set gpio to input");
+        PinDriver::input(peripherals.pins.gpio17).expect("couldn't set gpio to input");
     move_input
         .set_pull(Pull::Down)
         .expect("couldn't set input pin to pull down");
@@ -53,15 +53,16 @@ fn main() {
         ).unwrap()),
     ).unwrap();
     ping(Ipv4Addr::new(192, 168, 1, 59)).unwrap();
-    let socket = UdpSocket::bind("192.168.1.59:4002").expect("socket couldn't bind to address");
+    let socket = UdpSocket::bind("192.168.1.37:4002") //esp ip
+    .expect("socket couldn't bind to address");
     socket
-        .connect("192.168.1.59:4003")
+        .connect("192.168.1.59:4003")//server ip
         .expect("socket connect function failed");
     println!("loop");
     loop {
         // we are using thread::sleep here to make sure the watchdog isn't triggered
-        FreeRtos::delay_ms(10);
-
+        FreeRtos::delay_ms(100);
+        
         if move_input.is_high() {
             socket.send(&[1]).expect("couldn't send high message");
         } else {
