@@ -1,7 +1,7 @@
 # Esp32 program for movement detecting and data sending
-Esp32 program which uses a Hc-sr501 passive infra red sensor to detect movement and sends the sensor state via udp to Loxone server.
+Esp32 program which uses a HW-416 passive infra red sensor to detect movement and sends the sensor state via udp to Loxone server.
 
-## QEMU
+## Set up QEMU to simulate Esp32 hardware
 build prerequisites see https://wiki.qemu.org/Hosts/Linux
 ```
 sudo apt-get install git libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev ninja-build libgcrypt20 libgcrypt20-dev libuvdev-dev
@@ -34,7 +34,9 @@ load env vars (once per terminal session)
 ```
 . $HOME/export-esp.sh
 ```
-build app.bin see https://esp-rs.github.io/book/tooling/simulating/qemu.html
+## Run with Qemu
+build app.bin see https://esp-rs.github.io/book/tooling/simulating/qemu.html \\
+use `--features qemu` to switch from wifi to eth
 ```
 cargo espflash save-image --features qemu --merge ESP32 app.bin --release
 ```
@@ -42,9 +44,23 @@ run bin in QEMU
 ```
 ~/Documents/code/rust/esp_move_detect/qemu/build/qemu-system-xtensa -nographic -machine esp32 -nic user,model=open_eth,id=lo0,hostfwd=udp:127.0.0.1:7888-:80 -drive file=app.bin,if=mtd,format=raw
 ```
-DONE!
-
-## Problems
+Error: can not set up eth connecting
+```
+E(21285) esp_eth: esp_eth_stop(288): driver not started yet
+```
+## Run on Esp
+```
+sudo chmod 666 /dev/ttyUSB0
+```
+build and flash and monitor
+```
+cargo espflash --release --monitor /dev/ttyUSB0
+```
+only monitor
+```
+espflash serial-monitor /dev/ttyUSB0 
+```
+## Solved Problems
 Problem rust-analyser can't find clang: \
 put this in vscode -> user settings (settings.json)
 ```
@@ -54,8 +70,9 @@ put this in vscode -> user settings (settings.json)
 ```
 see https://githubhelp.com/esp-rs/esp-idf-template/issues/49
 
-## Rescources
+## Resources
 Esp Book https://esp-rs.github.io/book/
+https://github.com/ivmarkov/rust-esp32-std-demo
 
 
 
