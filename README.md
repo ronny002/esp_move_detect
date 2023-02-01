@@ -35,7 +35,7 @@ load env vars (once per terminal session)
 . $HOME/export-esp.sh
 ```
 ## Run with Qemu
-build app.bin see https://esp-rs.github.io/book/tooling/simulating/qemu.html \\
+build app.bin see https://esp-rs.github.io/book/tooling/simulating/qemu.html \
 use `--features qemu` to switch from wifi to eth
 ```
 cargo espflash save-image --features qemu --merge ESP32 app.bin --release
@@ -71,8 +71,8 @@ put this in vscode -> user settings (settings.json)
 see https://githubhelp.com/esp-rs/esp-idf-template/issues/49
 
 ## Resources
-Esp Book https://esp-rs.github.io/book/
-https://github.com/ivmarkov/rust-esp32-std-demo
+Esp Book https://esp-rs.github.io/book/ \
+Nice example program https://github.com/ivmarkov/rust-esp32-std-demo
 
 
 
