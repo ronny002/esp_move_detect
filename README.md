@@ -73,7 +73,7 @@ see https://githubhelp.com/esp-rs/esp-idf-template/issues/49
 ## Resources
 Esp Book https://esp-rs.github.io/book/ \
 Nice example program https://github.com/ivmarkov/rust-esp32-std-demo \
-
+IR sensor https://electropeak.com/learn/pir-motion-sensor-how-pir-work-how-use-with-arduino/
 
 
 
