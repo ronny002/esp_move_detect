@@ -20,7 +20,7 @@ build
 ninja -C build
 ```
 ## esp-idf-template
-build prerequisites see https://github.com/esp-rs/esp-idf-template and 
+build prerequisites see https://github.com/esp-rs/esp-idf-template and \
 https://docs.espressif.com/projects/esp-idf/en/v4.4.1/esp32/get-started/linux-setup.html \
 new project 
 ```
@@ -72,7 +72,8 @@ see https://githubhelp.com/esp-rs/esp-idf-template/issues/49
 
 ## Resources
 Esp Book https://esp-rs.github.io/book/ \
-Nice example program https://github.com/ivmarkov/rust-esp32-std-demo
+Nice example program https://github.com/ivmarkov/rust-esp32-std-demo \
+IR sensor https://electropeak.com/learn/pir-motion-sensor-how-pir-work-how-use-with-arduino/
 
 
 
