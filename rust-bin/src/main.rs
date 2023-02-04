@@ -6,7 +6,7 @@ use anyhow:: Result;
 
 
 use esp_idf_hal::delay::FreeRtos;
-use esp_idf_hal::gpio::{PinDriver, Pull};
+use esp_idf_hal::gpio::{PinDriver, Pull, Level};
 use esp_idf_hal::peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 
@@ -35,9 +35,9 @@ fn main() {
     println!("start");
 
     let peripherals = Peripherals::take().unwrap();
-    let mut move_input =
+    let mut move_input_pin =
         PinDriver::input(peripherals.pins.gpio17).expect("couldn't set gpio to input");
-    move_input
+    move_input_pin
         .set_pull(Pull::Down)
         .expect("couldn't set input pin to pull down");
 
@@ -60,17 +60,24 @@ fn main() {
         .expect("socket connect function failed");
     println!("loop");
     let mut status = 0;
+    let mut move_input = 0;
     loop {
         // we are using thread::sleep here to make sure the watchdog isn't triggered
         FreeRtos::delay_ms(100);
-        
-        if move_input.is_high() && status == 0 {
+        if let Level::High = move_input_pin.get_level(){
+            move_input = 1;
+        }
+        else{
+            move_input = 0;
+        }
+        println!("{}", move_input);
+        if move_input == 1 && status == 0 {
             status = 1;
-            println!("1");
+            //println!("1");
             socket.send(&[1]).expect("couldn't send high message");
-        } else if move_input.is_low() && status == 1{
+        } else if move_input == 0 && status == 1{
             status = 0;
-            println!("0");
+            //println!("0");
             socket.send(&[0]).expect("couldn't send low message");
         }
         
