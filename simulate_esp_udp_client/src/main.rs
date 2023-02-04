@@ -1,9 +1,9 @@
 use std::{net::UdpSocket, thread, time::Duration};
 
 fn main() {                                         //client
-    let socket = UdpSocket::bind("192.168.1.38:4002").expect("socket couldn't bind to address");
+    let socket = UdpSocket::bind("10.22.22.14:4002").expect("socket couldn't bind to address");
     socket
-        .connect("192.168.1.59:4003")   //server
+        .connect("192.168.1.191:4003")   //server
         .expect("socket connect function failed");
     println!("loop");
     loop {

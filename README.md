@@ -54,12 +54,15 @@ sudo chmod 666 /dev/ttyUSB0
 ```
 build and flash and monitor
 ```
+. $HOME/export-esp.sh
 cargo espflash --release --monitor /dev/ttyUSB0
 ```
 only monitor
 ```
 espflash serial-monitor /dev/ttyUSB0 
 ```
+## To Do
+- send commands over tcp to esp (example: p for pause)
 ## Solved Problems
 Problem rust-analyser can't find clang: \
 put this in vscode -> user settings (settings.json)

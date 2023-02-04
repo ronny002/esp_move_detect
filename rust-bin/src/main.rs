@@ -52,22 +52,28 @@ fn main() {
             esp_idf_svc::eth::EthDriver::new_openeth(peripherals.mac, sysloop.clone()).unwrap(),
         ).unwrap()),
     ).unwrap();
-    ping(Ipv4Addr::new(192, 168, 1, 59)).unwrap();
-    let socket = UdpSocket::bind("192.168.1.37:4002") //esp ip
+    ping(Ipv4Addr::new(192, 168, 1, 1)).unwrap();
+    let socket = UdpSocket::bind("192.168.1.66:4002") //esp ip
     .expect("socket couldn't bind to address");
     socket
-        .connect("192.168.1.59:4003")//server ip
+        .connect("192.168.1.222:4003")//server ip
         .expect("socket connect function failed");
     println!("loop");
+    let mut status = 0;
     loop {
         // we are using thread::sleep here to make sure the watchdog isn't triggered
         FreeRtos::delay_ms(100);
         
-        if move_input.is_high() {
+        if move_input.is_high() && status == 0 {
+            status = 1;
+            println!("1");
             socket.send(&[1]).expect("couldn't send high message");
-        } else {
+        } else if move_input.is_low() && status == 1{
+            status = 0;
+            println!("0");
             socket.send(&[0]).expect("couldn't send low message");
         }
+        
     }
 }
 
