@@ -23,12 +23,14 @@ fn main() {
     });
 
     println!("loop");
+    let mut count = 0;
     loop {
         // we are using thread::sleep here to make sure the watchdog isn't triggered
         thread::sleep(Duration::from_millis(1000));
         println!("run");
-
-        socket.send(&[5]).expect("couldn't send low message");
+        count += 1;
+        if count > 254 {count = 0;}
+        socket.send(&[count]).expect("couldn't send low message"); //easyer to see change on server
     }
     handle.join().unwrap();
 }

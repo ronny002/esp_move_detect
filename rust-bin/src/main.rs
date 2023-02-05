@@ -1,39 +1,44 @@
-use esp_idf_hal::modem::Modem;
-use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 
-use anyhow:: Result;
-
+use std::net::UdpSocket;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use esp_idf_hal::delay::FreeRtos;
-use esp_idf_hal::gpio::{PinDriver, Pull, Level};
+use esp_idf_hal::gpio::{Level, PinDriver, Pull};
+use esp_idf_hal::modem::Modem;
 use esp_idf_hal::peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 
-use esp_idf_svc::eventloop::{EspSystemEventLoop, EspEventLoop, System};
+use esp_idf_svc::eventloop::{EspEventLoop, EspSystemEventLoop, System};
+use esp_idf_svc::http::server::{Configuration, EspHttpServer};
 use esp_idf_svc::netif::{EspNetif, EspNetifWait};
+use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::ping::EspPing;
 use esp_idf_svc::wifi::{EspWifi, WifiWait};
 
+use embedded_svc::http::Method;
+use embedded_svc::io::Write;
 use embedded_svc::ipv4::Ipv4Addr;
-use embedded_svc::wifi::ClientConfiguration;
-use embedded_svc::wifi::Configuration;
-use embedded_svc::wifi::{AccessPointConfiguration, Wifi};
+use embedded_svc::wifi::{
+    AccessPointConfiguration, ClientConfiguration, Configuration as WifiConfig, Wifi,
+};
 
-use std::net::UdpSocket;
-use std::time::Duration;
+use anyhow::Result;
 
 mod wifi_info;
 use wifi_info::*;
+#[derive(Clone)]
+struct Ip {
+    own: Ipv4Addr,
+    server: Ipv4Addr,
+}
 fn main() {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
-    // unsafe{
-    //     if ESP_OK != nvs_flash_init(){panic!("nvs_flash_init failed")}
-    // }
-    println!("start");
 
+    println!("---------------start---------------");
     let peripherals = Peripherals::take().unwrap();
     let mut move_input_pin =
         PinDriver::input(peripherals.pins.gpio17).expect("couldn't set gpio to input");
@@ -41,60 +46,136 @@ fn main() {
         .set_pull(Pull::Down)
         .expect("couldn't set input pin to pull down");
 
+    println!("---------------set up wifi---------------");
     let sysloop = EspSystemEventLoop::take().unwrap();
     #[cfg(not(feature = "qemu"))]
     //let _wifi =  wifi_simple(peripherals.modem, sysloop).expect("couldn't connect to wifi");
-    let _wifi = wifi(peripherals.modem, sysloop).expect("couldn't connect to wifi");
+    let wifi = wifi(peripherals.modem, sysloop).expect("couldn't connect to wifi");
     #[cfg(feature = "qemu")]
     let eth = eth_configure(
         &sysloop,
-        Box::new(esp_idf_svc::eth::EspEth::wrap(
-            esp_idf_svc::eth::EthDriver::new_openeth(peripherals.mac, sysloop.clone()).unwrap(),
-        ).unwrap()),
-    ).unwrap();
-    ping(Ipv4Addr::new(192, 168, 1, 1)).unwrap();
-    let socket = UdpSocket::bind("192.168.1.66:4002") //esp ip
-    .expect("socket couldn't bind to address");
+        Box::new(
+            esp_idf_svc::eth::EspEth::wrap(
+                esp_idf_svc::eth::EthDriver::new_openeth(peripherals.mac, sysloop.clone()).unwrap(),
+            )
+            .unwrap(),
+        ),
+    )
+    .unwrap();
+    let ip = Ip {
+        own: wifi.sta_netif().get_ip_info().unwrap().ip,
+        server: "192.168.1.38".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+    };
+    ping(ip.server).unwrap();
+
+    println!("---------------set up http_server---------------");
+    let mut status;
+    let (_http_server, status_main) = http_server(ip.clone()).unwrap();
+
+    println!("---------------set up udp---------------");
+    let socket =
+        UdpSocket::bind(format!("{}:4002", ip.own)).expect("socket couldn't bind to address");
     socket
-        .connect("192.168.1.222:4003")//server ip
+        .connect(format!("{}:4003", ip.server))
         .expect("socket connect function failed");
-    println!("loop");
-    let mut status = 0;
-    let mut move_input = 0;
+
+    println!("---------------start loop---------------");
+    let mut toggle = 0;
+    let mut move_input;
     loop {
-        // we are using thread::sleep here to make sure the watchdog isn't triggered
-        FreeRtos::delay_ms(100);
-        if let Level::High = move_input_pin.get_level(){
-            move_input = 1;
+        {
+            let status_mutex = status_main.lock().unwrap();
+            status = *status_mutex;
         }
-        else{
-            move_input = 0;
+        if status == true {
+            FreeRtos::delay_ms(100);
+        } else {
+            // we are using thread::sleep here to make sure the watchdog isn't triggered
+            FreeRtos::delay_ms(100);
+            if let Level::High = move_input_pin.get_level() {
+                move_input = 1;
+            } else {
+                move_input = 0;
+            }
+            println!("{}", move_input);
+            if move_input == 1 && toggle == 0 {
+                toggle = 1;
+                println!("High");
+                socket.send(&[1]).expect("couldn't send high message");
+            } else if move_input == 0 && toggle == 1 {
+                toggle = 0;
+                println!("Low");
+                socket.send(&[0]).expect("couldn't send low message");
+            }
         }
-        println!("{}", move_input);
-        if move_input == 1 && status == 0 {
-            status = 1;
-            //println!("1");
-            socket.send(&[1]).expect("couldn't send high message");
-        } else if move_input == 0 && status == 1{
-            status = 0;
-            //println!("0");
-            socket.send(&[0]).expect("couldn't send low message");
-        }
-        
     }
 }
 
+fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<bool>>)> {
+    let server_config = Configuration::default();
+    let mut server = EspHttpServer::new(&server_config)?;
+    server.fn_handler("/", Method::Get, move |request| {
+        let html = index_html(format!(
+            "own: {}, server: {}",
+            ip.own.clone(),
+            ip.server.clone()
+        ));
+        request.into_ok_response()?.write_all(html.as_bytes())?;
+        Ok(())
+    })?;
 
-fn wifi_simple(modem: Modem, sys_loop: EspEventLoop<System>) -> Result<EspWifi<'static>>{
+    let status_fn = Arc::new(Mutex::new(false));
+    let status_thread1 = Arc::clone(&status_fn);
+    let status_thread2 = Arc::clone(&status_fn);
+
+    server
+        .fn_handler("/stop", Method::Get, move |request| {
+            let mut status = status_thread1.lock().unwrap();
+            *status = true;
+            let html = index_html(format!("status: {}", *status));
+            request.into_ok_response()?.write_all(html.as_bytes())?;
+            Ok(())
+        })?
+        .fn_handler("/start", Method::Get, move |request| {
+            let mut status = status_thread2.lock().unwrap();
+            *status = false;
+            let html = index_html(format!("status: {}", *status));
+            request.into_ok_response()?.write_all(html.as_bytes())?;
+            Ok(())
+        })?;
+    let status_main = Arc::clone(&status_fn);
+
+    Ok((server, status_main))
+}
+fn templated(content: impl AsRef<str>) -> String {
+    format!(
+        r#"
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>esp-rs web server</title>
+    </head>
+    <body>
+        {}
+    </body>
+</html>
+"#,
+        content.as_ref()
+    )
+}
+
+fn index_html(content: String) -> String {
+    templated(content)
+}
+
+//from https://medium.com/@rajeshpachaikani/connect-esp32-to-wifi-with-rust-7d12532f539b
+fn wifi_simple(modem: Modem, sys_loop: EspEventLoop<System>) -> Result<EspWifi<'static>> {
     let nvs = EspDefaultNvsPartition::take()?;
 
-    let mut wifi_driver = EspWifi::new(
-        modem,
-        sys_loop,
-        Some(nvs)
-    )?;
+    let mut wifi_driver = EspWifi::new(modem, sys_loop, Some(nvs))?;
 
-    wifi_driver.set_configuration(&Configuration::Client(ClientConfiguration{
+    wifi_driver.set_configuration(&WifiConfig::Client(ClientConfiguration {
         ssid: SSID.into(),
         password: PASS.into(),
         ..Default::default()
@@ -102,23 +183,28 @@ fn wifi_simple(modem: Modem, sys_loop: EspEventLoop<System>) -> Result<EspWifi<'
 
     wifi_driver.start()?;
     wifi_driver.connect()?;
-    while !wifi_driver.is_connected()?{
+    while !wifi_driver.is_connected()? {
         let config = wifi_driver.get_configuration()?;
         println!("Waiting for station {:?}", config);
     }
     println!("Should be connected now");
-    for _ in 0..3{
+    for _ in 0..3 {
         println!("IP info: {:?}", wifi_driver.sta_netif().get_ip_info()?);
         FreeRtos::delay_ms(1000);
     }
     Ok(wifi_driver)
 }
+//from https://github.com/ivmarkov/rust-esp32-std-demo/blob/main/src/main.rs
 #[cfg(not(feature = "qemu"))]
 fn wifi(
     modem: impl peripheral::Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
     sysloop: EspSystemEventLoop,
 ) -> Result<Box<EspWifi<'static>>> {
-    let mut wifi = Box::new(EspWifi::new(modem, sysloop.clone(), EspDefaultNvsPartition::take().ok())?);
+    let mut wifi = Box::new(EspWifi::new(
+        modem,
+        sysloop.clone(),
+        EspDefaultNvsPartition::take().ok(),
+    )?);
 
     println!("Wifi created, about to scan");
 
@@ -140,7 +226,7 @@ fn wifi(
         None
     };
 
-    wifi.set_configuration(&Configuration::Mixed(
+    wifi.set_configuration(&WifiConfig::Mixed(
         ClientConfiguration {
             ssid: SSID.into(),
             password: PASS.into(),
@@ -186,7 +272,7 @@ fn wifi(
 
     Ok(wifi)
 }
-
+//from https://github.com/ivmarkov/rust-esp32-std-demo/blob/main/src/main.rs
 fn ping(ip: Ipv4Addr) -> Result<()> {
     println!("About to do some pings for {:?}", ip);
 
@@ -199,7 +285,7 @@ fn ping(ip: Ipv4Addr) -> Result<()> {
 
     Ok(())
 }
-
+//from https://github.com/ivmarkov/rust-esp32-std-demo/blob/main/src/main.rs
 #[cfg(any(feature = "qemu"))]
 fn eth_configure(
     sysloop: &EspSystemEventLoop,
