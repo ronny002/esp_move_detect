@@ -1,0 +1,10 @@
+restart
+pause
+run
+ipclient=192.168.1.66
+ipserver=192.168.1.222
+showip
+high
+low
+time=50
+trigger/sensitivity=10
