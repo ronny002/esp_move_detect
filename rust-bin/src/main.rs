@@ -80,7 +80,7 @@ fn main() {
         .expect("socket connect function failed");
 
     println!("---------------start loop---------------");
-    let mut toggle = 0;
+    let mut toggle_detect = 0;
     let mut move_input;
     loop {
         {
@@ -98,12 +98,12 @@ fn main() {
                 move_input = 0;
             }
             println!("{}", move_input);
-            if move_input == 1 && toggle == 0 {
-                toggle = 1;
+            if move_input == 1 && toggle_detect == 0 {
+                toggle_detect = 1;
                 println!("High");
                 socket.send(&[1]).expect("couldn't send high message");
-            } else if move_input == 0 && toggle == 1 {
-                toggle = 0;
+            } else if move_input == 0 && toggle_detect == 1 {
+                toggle_detect = 0;
                 println!("Low");
                 socket.send(&[0]).expect("couldn't send low message");
             }
