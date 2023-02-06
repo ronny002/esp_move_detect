@@ -1,3 +1,6 @@
+This is an example for a command list 
+Commands can be used to comunicate with the esp and to manage the eps's settings
+
 restart
 pause
 run
