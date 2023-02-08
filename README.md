@@ -4,7 +4,11 @@ Esp32 program which uses a HW-416 passive infra red sensor to detect movement an
 ## Set up QEMU to simulate Esp32 hardware
 build prerequisites see https://wiki.qemu.org/Hosts/Linux
 ```
-sudo apt-get install git libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev ninja-build libgcrypt20 libgcrypt20-dev libuvdev-dev
+sudo apt-get install git libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev ninja-build libgcrypt20 libgcrypt20-dev libudev-dev
+```
+get Qemu
+```
+git clone https://gitlab.com/qemu-project/qemu.git
 ```
 configure see https://github.com/espressif/qemu/wiki
 ```
@@ -20,8 +24,16 @@ build
 ninja -C build
 ```
 ## esp-idf-template
-build prerequisites see https://github.com/esp-rs/esp-idf-template and \
-https://docs.espressif.com/projects/esp-idf/en/v4.4.1/esp32/get-started/linux-setup.html \
+get toolchain see prerequisites at https://github.com/esp-rs/esp-idf-template#prerequisites and \
+https://docs.espressif.com/projects/esp-idf/en/v4.4.1/esp32/get-started/linux-setup.html 
+```
+cargo install cargo-generate
+cargo install ldproxy
+cargo install espup
+cargo install espflash
+cargo install cargo-espflash
+espup install
+```
 new project 
 ```
 cargo generate https://github.com/esp-rs/esp-idf-template cargo
