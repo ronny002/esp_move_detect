@@ -1,5 +1,5 @@
 # Esp32 program for movement detecting and data sending
-Esp32 program which uses a HW-416 passive infra red sensor to detect movement and sends the sensor state via udp to Loxone server.
+Esp32 program which uses a HW-416 passive infra red sensor (5V) to detect movement and sends the sensor state via udp to Loxone server.
 
 ## Set up QEMU to simulate Esp32 hardware
 build prerequisites see https://wiki.qemu.org/Hosts/Linux

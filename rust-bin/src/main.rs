@@ -93,7 +93,7 @@ fn main() {
     #[cfg(feature = "qemu")]
     let ip = Ip {
         own: eth.netif().get_ip_info().unwrap().ip,
-        server: "192.168.1.38".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+        server: "127.0.0.1".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
     };
     ping(ip.server).unwrap();
 
