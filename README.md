@@ -8,7 +8,7 @@ sudo apt-get install git libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev ni
 ```
 get Qemu
 ```
-git clone https://gitlab.com/qemu-project/qemu.git
+git clone https://github.com/espressif/qemu
 ```
 configure see https://github.com/espressif/qemu/wiki
 ```
