@@ -48,7 +48,12 @@ load env vars (once per terminal session)
 ```
 ## Run with Qemu
 build app.bin see https://esp-rs.github.io/book/tooling/simulating/qemu.html \
-use `--features qemu` to switch from wifi to eth
+use `--features qemu` to switch from wifi to eth \
+Build and run
+```
+./qemu.sh
+```
+Build
 ```
 cargo espflash save-image --features qemu --merge ESP32 app.bin --release
 ```

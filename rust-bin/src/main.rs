@@ -17,6 +17,8 @@ use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::ping::EspPing;
 use esp_idf_svc::wifi::{EspWifi, WifiWait};
 
+use esp_idf_sys::esp_restart;
+
 use embedded_svc::http::Method;
 use embedded_svc::io::Write;
 use embedded_svc::ipv4::Ipv4Addr;
@@ -26,12 +28,33 @@ use embedded_svc::wifi::{
 
 use anyhow::Result;
 
+#[cfg(not(feature = "qemu"))]
 mod wifi_info;
+#[cfg(not(feature = "qemu"))]
 use wifi_info::*;
+
 #[derive(Clone)]
 struct Ip {
     own: Ipv4Addr,
     server: Ipv4Addr,
+}
+#[derive(PartialEq, Debug, Clone)]
+enum States {
+    Run,
+    Pause,
+    Restart,
+}
+#[derive(PartialEq, Debug, Clone)]
+enum DebugOutput {
+    High,
+    Low,
+    Off,
+}
+#[derive(Debug, Clone)]
+struct Commands {
+    status: States,
+    const_output: DebugOutput,
+    time: u8,
 }
 fn main() {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -62,15 +85,21 @@ fn main() {
         ),
     )
     .unwrap();
+    #[cfg(not(feature = "qemu"))]
     let ip = Ip {
         own: wifi.sta_netif().get_ip_info().unwrap().ip,
+        server: "192.168.1.70".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+    };
+    #[cfg(feature = "qemu")]
+    let ip = Ip {
+        own: eth.netif().get_ip_info().unwrap().ip,
         server: "192.168.1.38".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
     };
     ping(ip.server).unwrap();
 
     println!("---------------set up http_server---------------");
-    let mut status;
-    let (_http_server, status_main) = http_server(ip.clone()).unwrap();
+    let mut command;
+    let (_http_server, command_main) = http_server(ip.clone()).unwrap();
 
     println!("---------------set up udp---------------");
     let socket =
@@ -81,20 +110,25 @@ fn main() {
 
     println!("---------------start loop---------------");
     let mut toggle_detect = 0;
-    let mut move_input;
+    let mut move_input ;
     loop {
-        {
-            let status_mutex = status_main.lock().unwrap();
-            status = *status_mutex;
-        }
-        if status == true {
+        let command_mutex = command_main.lock().unwrap();
+        command = command_mutex.clone();
+        drop(command_mutex);
+
+        if command.status == States::Pause {
             FreeRtos::delay_ms(100);
-        } else {
+        } else if command.status == States::Run {
             // we are using thread::sleep here to make sure the watchdog isn't triggered
             FreeRtos::delay_ms(100);
-            if let Level::High = move_input_pin.get_level() {
+            if Level::High == move_input_pin.get_level() {
                 move_input = 1;
             } else {
+                move_input = 0;
+            }
+            if command.const_output == DebugOutput::High {
+                move_input = 1;
+            } else if command.const_output == DebugOutput::Low {
                 move_input = 0;
             }
             println!("{}", move_input);
@@ -107,11 +141,15 @@ fn main() {
                 println!("Low");
                 socket.send(&[0]).expect("couldn't send low message");
             }
+        } else if command.status == States::Restart {
+            unsafe{
+                esp_restart()
+            }
         }
     }
 }
 
-fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<bool>>)> {
+fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
     let server_config = Configuration::default();
     let mut server = EspHttpServer::new(&server_config)?;
     server.fn_handler("/", Method::Get, move |request| {
@@ -124,28 +162,64 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<bool>>)> {
         Ok(())
     })?;
 
-    let status_fn = Arc::new(Mutex::new(false));
-    let status_thread1 = Arc::clone(&status_fn);
-    let status_thread2 = Arc::clone(&status_fn);
+    let command_fn = Arc::new(Mutex::new(Commands {
+        status: States::Run,
+        const_output: DebugOutput::Off,
+        time: 10,
+    }));
+    let command_thread1 = Arc::clone(&command_fn);
+    let command_thread2 = Arc::clone(&command_fn);
+    let command_thread3 = Arc::clone(&command_fn);
+    let command_thread4 = Arc::clone(&command_fn);
+    let command_thread5 = Arc::clone(&command_fn);
+    let command_thread6 = Arc::clone(&command_fn);
 
     server
-        .fn_handler("/stop", Method::Get, move |request| {
-            let mut status = status_thread1.lock().unwrap();
-            *status = true;
-            let html = index_html(format!("status: {}", *status));
+        .fn_handler("/pause", Method::Get, move |request| {
+            let mut command = command_thread1.lock().unwrap();
+            command.status = States::Pause;
+            let html = index_html(format!("status: {:?}", command.status));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?
-        .fn_handler("/start", Method::Get, move |request| {
-            let mut status = status_thread2.lock().unwrap();
-            *status = false;
-            let html = index_html(format!("status: {}", *status));
+        .fn_handler("/run", Method::Get, move |request| {
+            let mut command = command_thread2.lock().unwrap();
+            command.status = States::Run;
+            let html = index_html(format!("status: {:?}", command.status));
+            request.into_ok_response()?.write_all(html.as_bytes())?;
+            Ok(())
+        })?
+        .fn_handler("/restart", Method::Get, move |request| {
+            let mut command = command_thread3.lock().unwrap();
+            command.status = States::Restart;
+            let html = index_html(format!("status: {:?}", command.status));
+            request.into_ok_response()?.write_all(html.as_bytes())?;
+            Ok(())
+        })?
+        .fn_handler("/debughigh", Method::Get, move |request| {
+            let mut command = command_thread4.lock().unwrap();
+            command.const_output = DebugOutput::High;
+            let html = index_html(format!("status: debug {:?}", command.const_output));
+            request.into_ok_response()?.write_all(html.as_bytes())?;
+            Ok(())
+        })?
+        .fn_handler("/debuglow", Method::Get, move |request| {
+            let mut command = command_thread5.lock().unwrap();
+            command.const_output = DebugOutput::Low;
+            let html = index_html(format!("status: debug {:?}", command.const_output));
+            request.into_ok_response()?.write_all(html.as_bytes())?;
+            Ok(())
+        })?
+        .fn_handler("/debugoff", Method::Get, move |request| {
+            let mut command = command_thread6.lock().unwrap();
+            command.const_output = DebugOutput::Off;
+            let html = index_html(format!("status: debug {:?}", command.const_output));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?;
-    let status_main = Arc::clone(&status_fn);
+    let command_main = Arc::clone(&command_fn);
 
-    Ok((server, status_main))
+    Ok((server, command_main))
 }
 fn templated(content: impl AsRef<str>) -> String {
     format!(
@@ -170,6 +244,7 @@ fn index_html(content: String) -> String {
 }
 
 //from https://medium.com/@rajeshpachaikani/connect-esp32-to-wifi-with-rust-7d12532f539b
+#[cfg(not(feature = "qemu"))]
 fn wifi_simple(modem: Modem, sys_loop: EspEventLoop<System>) -> Result<EspWifi<'static>> {
     let nvs = EspDefaultNvsPartition::take()?;
 
@@ -291,8 +366,6 @@ fn eth_configure(
     sysloop: &EspSystemEventLoop,
     mut eth: Box<esp_idf_svc::eth::EspEth<'static>>,
 ) -> Result<Box<esp_idf_svc::eth::EspEth<'static>>> {
-    use std::net::Ipv4Addr;
-
     println!("Eth created");
 
     eth.start()?;
