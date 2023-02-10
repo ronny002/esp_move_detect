@@ -1,13 +1,13 @@
 This is an example for a command list 
 Commands can be used to comunicate with the esp and to manage the eps's settings
 
-restart
-pause
-run
+restart check
+pause check
+run check
 ipclient=192.168.1.66
 ipserver=192.168.1.222
-showip
-high
-low
+showip check
+high check
+low check
 time=50
 trigger/sensitivity=10

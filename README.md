@@ -79,7 +79,9 @@ only monitor
 espflash serial-monitor /dev/ttyUSB0 
 ```
 ## To Do
-- send commands over tcp to esp (example: p for pause)
+- esp-ota https://lib.rs/crates/esp-ota
+- http server: time, sensitivity
+- esp access point for esps far from wifi router
 ## Solved Problems
 Problem rust-analyser can't find clang: \
 put this in vscode -> user settings (settings.json)

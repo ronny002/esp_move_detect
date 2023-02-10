@@ -110,7 +110,7 @@ fn main() {
 
     println!("---------------start loop---------------");
     let mut toggle_detect = 0;
-    let mut move_input ;
+    let mut move_input;
     loop {
         let command_mutex = command_main.lock().unwrap();
         command = command_mutex.clone();
@@ -142,13 +142,12 @@ fn main() {
                 socket.send(&[0]).expect("couldn't send low message");
             }
         } else if command.status == States::Restart {
-            unsafe{
-                esp_restart()
+            unsafe {
+                esp_restart();
             }
         }
     }
 }
-
 fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
     let server_config = Configuration::default();
     let mut server = EspHttpServer::new(&server_config)?;
@@ -309,7 +308,7 @@ fn wifi(
             ..Default::default()
         },
         AccessPointConfiguration {
-            ssid: "aptest".into(),
+            ssid: "esp".into(),
             channel: channel.unwrap_or(1),
             ..Default::default()
         },
@@ -326,7 +325,7 @@ fn wifi(
     }
 
     println!("Connecting wifi...");
-
+    println!("AP Info: {:?}", wifi.ap_netif().get_ip_info().unwrap());
     wifi.connect()?;
 
     if !EspNetifWait::new::<EspNetif>(wifi.sta_netif(), &sysloop)?.wait_with_timeout(
