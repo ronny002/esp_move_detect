@@ -55,6 +55,7 @@ struct Commands {
     status: States,
     const_output: DebugOutput,
     time: u8,
+    ota: bool
 }
 fn main() {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -115,7 +116,9 @@ fn main() {
         let command_mutex = command_main.lock().unwrap();
         command = command_mutex.clone();
         drop(command_mutex);
-
+        if command.ota == true {
+          //  ota_flash().expect("ota failed");
+        }
         if command.status == States::Pause {
             FreeRtos::delay_ms(100);
         } else if command.status == States::Run {
@@ -148,6 +151,7 @@ fn main() {
         }
     }
 }
+
 fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
     let server_config = Configuration::default();
     let mut server = EspHttpServer::new(&server_config)?;
@@ -165,6 +169,7 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
         status: States::Run,
         const_output: DebugOutput::Off,
         time: 10,
+        ota: false
     }));
     let command_thread1 = Arc::clone(&command_fn);
     let command_thread2 = Arc::clone(&command_fn);
@@ -172,6 +177,8 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
     let command_thread4 = Arc::clone(&command_fn);
     let command_thread5 = Arc::clone(&command_fn);
     let command_thread6 = Arc::clone(&command_fn);
+    let command_thread7 = Arc::clone(&command_fn);
+
 
     server
         .fn_handler("/pause", Method::Get, move |request| {
@@ -215,11 +222,19 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
             let html = index_html(format!("status: debug {:?}", command.const_output));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
+        })?
+        .fn_handler("/ota", Method::Get, move |request| {
+            let mut command = command_thread7.lock().unwrap();
+            command.ota = true;
+            let html = index_html(format!("status: ota {:?}", command.ota));
+            request.into_ok_response()?.write_all(html.as_bytes())?;
+            Ok(())
         })?;
     let command_main = Arc::clone(&command_fn);
 
     Ok((server, command_main))
 }
+
 fn templated(content: impl AsRef<str>) -> String {
     format!(
         r#"
@@ -393,3 +408,28 @@ fn eth_configure(
 
     Ok(eth)
 }
+
+// fn ota_flash() -> Result<()> {
+//     // This is a very unrealistic example. You usually don't store the new app in the
+//     // old app. Instead you obtain it by downloading it from somewhere or similar.
+//     const NEW_APP: &[u8] = include_bytes!("../app.bin");
+
+//     // Finds the next suitable OTA partition and erases it
+//     let mut ota = esp_ota::OtaUpdate::begin()?;
+
+//     // Write the app to flash. Normally you would download
+//     // the app and call `ota.write` every time you have obtained
+//     // a part of the app image. This example is not realistic,
+//     // since it has the entire new app bundled.
+//     for app_chunk in NEW_APP.chunks(4096) {
+//         ota.write(app_chunk)?;
+//     }
+
+//     // Performs validation of the newly written app image and completes the OTA update.
+//     let mut completed_ota = ota.finalize()?;
+
+//     // Sets the newly written to partition as the next partition to boot from.
+//     completed_ota.set_as_boot_partition()?;
+//     // Restarts the CPU, booting into the newly written app.
+//     completed_ota.restart();
+// }
