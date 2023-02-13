@@ -55,7 +55,7 @@ Build and run
 ```
 Build
 ```
-cargo espflash save-image --features qemu --merge ESP32 app.bin --release
+cargo espflash save-image --features qemu --merge --release ESP32 app.bin 
 ```
 run bin in QEMU
 ```
@@ -79,7 +79,7 @@ only monitor
 espflash serial-monitor /dev/ttyUSB0 
 ```
 ## To Do
-- esp-ota https://lib.rs/crates/esp-ota
+- esp-ota https://lib.rs/crates
 - http server: time, sensitivity
 - esp access point for esps far from wifi router
 ## Solved Problems

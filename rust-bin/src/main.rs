@@ -55,7 +55,7 @@ struct Commands {
     status: States,
     const_output: DebugOutput,
     time: u8,
-    ota: bool
+    ota: bool,
 }
 fn main() {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -117,7 +117,7 @@ fn main() {
         command = command_mutex.clone();
         drop(command_mutex);
         if command.ota == true {
-          //  ota_flash().expect("ota failed");
+              ota_flash().expect("ota failed");
         }
         if command.status == States::Pause {
             FreeRtos::delay_ms(100);
@@ -169,7 +169,7 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
         status: States::Run,
         const_output: DebugOutput::Off,
         time: 10,
-        ota: false
+        ota: false,
     }));
     let command_thread1 = Arc::clone(&command_fn);
     let command_thread2 = Arc::clone(&command_fn);
@@ -178,7 +178,6 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
     let command_thread5 = Arc::clone(&command_fn);
     let command_thread6 = Arc::clone(&command_fn);
     let command_thread7 = Arc::clone(&command_fn);
-
 
     server
         .fn_handler("/pause", Method::Get, move |request| {
@@ -259,6 +258,7 @@ fn index_html(content: String) -> String {
 
 //from https://medium.com/@rajeshpachaikani/connect-esp32-to-wifi-with-rust-7d12532f539b
 #[cfg(not(feature = "qemu"))]
+#[allow(dead_code)]
 fn wifi_simple(modem: Modem, sys_loop: EspEventLoop<System>) -> Result<EspWifi<'static>> {
     let nvs = EspDefaultNvsPartition::take()?;
 
@@ -409,27 +409,28 @@ fn eth_configure(
     Ok(eth)
 }
 
-// fn ota_flash() -> Result<()> {
-//     // This is a very unrealistic example. You usually don't store the new app in the
-//     // old app. Instead you obtain it by downloading it from somewhere or similar.
-//     const NEW_APP: &[u8] = include_bytes!("../app.bin");
+fn ota_flash() -> Result<()> {
+    // This is a very unrealistic example. You usually don't store the new app in the
+    // old app. Instead you obtain it by downloading it from somewhere or similar.
+    const NEW_APP: &[u8] = include_bytes!("../app.bin");
 
-//     // Finds the next suitable OTA partition and erases it
-//     let mut ota = esp_ota::OtaUpdate::begin()?;
+    // Finds the next suitable OTA partition and erases it
+    let mut ota = esp_ota::OtaUpdate::begin()?;
 
-//     // Write the app to flash. Normally you would download
-//     // the app and call `ota.write` every time you have obtained
-//     // a part of the app image. This example is not realistic,
-//     // since it has the entire new app bundled.
-//     for app_chunk in NEW_APP.chunks(4096) {
-//         ota.write(app_chunk)?;
-//     }
+    // Write the app to flash. Normally you would download
+    // the app and call `ota.write` every time you have obtained
+    // a part of the app image. This example is not realistic,
+    // since it has the entire new app bundled.
+    for app_chunk in NEW_APP.chunks(4096) {
+        ota.write(app_chunk)?;
+    }
 
-//     // Performs validation of the newly written app image and completes the OTA update.
-//     let mut completed_ota = ota.finalize()?;
+    // Performs validation of the newly written app image and completes the OTA update.
+    let mut completed_ota = ota.finalize()?;
 
-//     // Sets the newly written to partition as the next partition to boot from.
-//     completed_ota.set_as_boot_partition()?;
-//     // Restarts the CPU, booting into the newly written app.
-//     completed_ota.restart();
-// }
+    // Sets the newly written to partition as the next partition to boot from.
+    completed_ota.set_as_boot_partition()?;
+    // Restarts the CPU, booting into the newly written app.
+    completed_ota.restart();
+
+}

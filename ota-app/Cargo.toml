@@ -1,0 +1,24 @@
+[package]
+name = "ota-app"
+version = "0.1.0"
+authors = ["ronny002 <romankray@freenet.de>"]
+edition = "2021"
+resolver = "2"
+
+[profile.release]
+opt-level = "s"
+
+[profile.dev]
+debug = true # Symbols are nice and they don't increase the size on Flash
+opt-level = "z"
+
+[features]
+pio = ["esp-idf-sys/pio"]
+
+[dependencies]
+log = { version = "0.4", default-features = false }
+esp-idf-sys = { version = "0.31.11", default-features = false, features = ["binstart", "panic_handler", "alloc_handler"] }
+esp-idf-svc = { version = "0.43.1", default-features = false, features = ["alloc"] }
+
+[build-dependencies]
+embuild = "0.30.4"

@@ -1,0 +1,30 @@
+[package]
+name = "ota-test"
+version = "0.1.0"
+authors = ["ronny002 <romankray@freenet.de>"]
+edition = "2021"
+resolver = "2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+
+[profile.dev]
+debug = true # Symbols are nice and they don't increase the size on Flash
+opt-level = "z"
+
+[features]
+pio = ["esp-idf-sys/pio"]
+
+[dependencies]
+esp-idf-sys = { version = "0.31.11", features = ["binstart"] }
+esp-ota = "*"
+esp-idf-hal = "*"
+
+[build-dependencies]
+embuild = "0.30.4"
+
+[package.metadata.espflash]
+partition_table = "partitions.csv"
+

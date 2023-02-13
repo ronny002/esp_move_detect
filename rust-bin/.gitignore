@@ -3,3 +3,4 @@
 /target
 /Cargo.lock
 /src/wifi_info.rs
+app.bin
