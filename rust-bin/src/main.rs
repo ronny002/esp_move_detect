@@ -1,5 +1,3 @@
-use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
-
 use std::net::UdpSocket;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -408,7 +406,7 @@ fn eth_configure(
 
     Ok(eth)
 }
-
+//from https://github.com/faern/esp-ota/tree/e73cf6f3959ab41ecdb459851e878946ebbb7363/
 fn ota_flash() -> Result<()> {
     // This is a very unrealistic example. You usually don't store the new app in the
     // old app. Instead you obtain it by downloading it from somewhere or similar.

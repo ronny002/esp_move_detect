@@ -79,7 +79,7 @@ only monitor
 espflash serial-monitor /dev/ttyUSB0 
 ```
 ## To Do
-- esp-ota https://lib.rs/crates
+- esp-ota https://github.com/faern/esp-ota/tree/e73cf6f3959ab41ecdb459851e878946ebbb7363/
 - http server: time, sensitivity
 - esp access point for esps far from wifi router
 ## Solved Problems
