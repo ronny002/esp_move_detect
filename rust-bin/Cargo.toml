@@ -38,5 +38,5 @@ embuild = "0.31.0"
 
 
 [package.metadata.espflash]
-partition_table = "partitions.csv"
+partition_table = "partitions_qemu.csv"
 

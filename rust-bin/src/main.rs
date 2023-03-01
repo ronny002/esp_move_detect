@@ -87,14 +87,14 @@ fn main() {
     #[cfg(not(feature = "qemu"))]
     let ip = Ip {
         own: wifi.sta_netif().get_ip_info().unwrap().ip,
-        server: "192.168.1.70".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+        server: "192.168.1.222".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
     };
     #[cfg(feature = "qemu")]
     let ip = Ip {
         own: eth.netif().get_ip_info().unwrap().ip,
-        server: "127.0.0.1".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+        server: "192.168.1.45".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
     };
-    ping(ip.server).unwrap();
+    //ping(ip.server).unwrap();
 
     println!("---------------set up http_server---------------");
     let mut command;
@@ -115,7 +115,7 @@ fn main() {
         command = command_mutex.clone();
         drop(command_mutex);
         if command.ota == true {
-              ota_flash().expect("ota failed");
+            //  ota_flash().expect("ota failed");
         }
         if command.status == States::Pause {
             FreeRtos::delay_ms(100);
@@ -151,11 +151,13 @@ fn main() {
 }
 
 fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
-    let server_config = Configuration::default();
+    let mut server_config = Configuration::default();
+    server_config.http_port = 80;
     let mut server = EspHttpServer::new(&server_config)?;
     server.fn_handler("/", Method::Get, move |request| {
         let html = index_html(format!(
-            "own: {}, server: {}",
+            "own: {}, server: {}<br>commands:<br> 
+            pause<br>run<br>restart<br>debughigh<br>debuglow<br>debugoff<br>ota",
             ip.own.clone(),
             ip.server.clone()
         ));
@@ -407,28 +409,28 @@ fn eth_configure(
     Ok(eth)
 }
 //from https://github.com/faern/esp-ota/tree/e73cf6f3959ab41ecdb459851e878946ebbb7363/
-fn ota_flash() -> Result<()> {
-    // This is a very unrealistic example. You usually don't store the new app in the
-    // old app. Instead you obtain it by downloading it from somewhere or similar.
-    const NEW_APP: &[u8] = include_bytes!("../app.bin");
+// fn ota_flash() -> Result<()> {
+//     // This is a very unrealistic example. You usually don't store the new app in the
+//     // old app. Instead you obtain it by downloading it from somewhere or similar.
+//     const NEW_APP: &[u8] = include_bytes!("../app.bin");
 
-    // Finds the next suitable OTA partition and erases it
-    let mut ota = esp_ota::OtaUpdate::begin()?;
+//     // Finds the next suitable OTA partition and erases it
+//     let mut ota = esp_ota::OtaUpdate::begin()?;
 
-    // Write the app to flash. Normally you would download
-    // the app and call `ota.write` every time you have obtained
-    // a part of the app image. This example is not realistic,
-    // since it has the entire new app bundled.
-    for app_chunk in NEW_APP.chunks(4096) {
-        ota.write(app_chunk)?;
-    }
+//     // Write the app to flash. Normally you would download
+//     // the app and call `ota.write` every time you have obtained
+//     // a part of the app image. This example is not realistic,
+//     // since it has the entire new app bundled.
+//     for app_chunk in NEW_APP.chunks(4096) {
+//         ota.write(app_chunk)?;
+//     }
 
-    // Performs validation of the newly written app image and completes the OTA update.
-    let mut completed_ota = ota.finalize()?;
+//     // Performs validation of the newly written app image and completes the OTA update.
+//     let mut completed_ota = ota.finalize()?;
 
-    // Sets the newly written to partition as the next partition to boot from.
-    completed_ota.set_as_boot_partition()?;
-    // Restarts the CPU, booting into the newly written app.
-    completed_ota.restart();
+//     // Sets the newly written to partition as the next partition to boot from.
+//     completed_ota.set_as_boot_partition()?;
+//     // Restarts the CPU, booting into the newly written app.
+//     completed_ota.restart();
 
-}
+// }

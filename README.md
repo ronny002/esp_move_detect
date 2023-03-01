@@ -48,7 +48,8 @@ load env vars (once per terminal session)
 ```
 ## Run with Qemu
 build app.bin see https://esp-rs.github.io/book/tooling/simulating/qemu.html \
-use `--features qemu` to switch from wifi to eth \
+use `--features qemu` to switch from wifi to eth (included in qemu.sh) \
+First put `partition_table = "partitions_qemu.csv"` in Cargo.toml \
 Build and run
 ```
 ./qemu.sh
@@ -61,11 +62,13 @@ run bin in QEMU
 ```
 ~/Documents/code/rust/esp_move_detect/qemu/build/qemu-system-xtensa -nographic -machine esp32 -nic user,model=open_eth,id=lo0,hostfwd=udp:127.0.0.1:7888-:80 -drive file=app.bin,if=mtd,format=raw
 ```
-Error: can not set up eth connecting
-```
-E(21285) esp_eth: esp_eth_stop(288): driver not started yet
-```
+Networking \
+see https://www.sbarjatiya.com/notes_wiki/index.php/Qemu_networking
+- host (server) can be reached from guest (esp) with host ip
+- to reach guest from host hostfw is needed
+  hostfwd=tcp/upd:hostip:hostport-guestip:guestport
 ## Run on Esp
+First put `partition_table = "partitions.csv"` in Cargo.toml 
 ```
 sudo chmod 666 /dev/ttyUSB0
 ```
@@ -80,7 +83,9 @@ espflash serial-monitor /dev/ttyUSB0
 ```
 ## To Do
 - esp-ota https://github.com/faern/esp-ota/tree/e73cf6f3959ab41ecdb459851e878946ebbb7363/
-- http server: time, sensitivity
+    - switch to new firmware works
+    - how to download new firmware to esp? 
+- http server commands: time, sensitivity (connect pwm instead poti?)
 - esp access point for esps far from wifi router
 ## Solved Problems
 Problem rust-analyser can't find clang: \
