@@ -6,11 +6,13 @@ edition = "2021"
 resolver = "2"
 
 [profile.release]
+#opt-level = "s"
+#smaller bin
 opt-level = "z"
-#strip = true  # Automatically strip symbols from the binary.
 lto = true
 codegen-units = 1
 panic = "abort"
+#strip = true  # Automatically strip symbols from the binary.
 
 [profile.dev]
 debug = true    # Symbols are nice and they don't increase the size on Flash
@@ -38,5 +40,5 @@ embuild = "0.31.0"
 
 
 [package.metadata.espflash]
-partition_table = "partitions_qemu.csv"
+partition_table = "partitions.csv"
 

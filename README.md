@@ -49,7 +49,6 @@ load env vars (once per terminal session)
 ## Run with Qemu
 build app.bin see https://esp-rs.github.io/book/tooling/simulating/qemu.html \
 use `--features qemu` to switch from wifi to eth (included in qemu.sh) \
-First put `partition_table = "partitions_qemu.csv"` in Cargo.toml \
 Build and run
 ```
 ./qemu.sh
@@ -67,12 +66,15 @@ see https://www.sbarjatiya.com/notes_wiki/index.php/Qemu_networking
 - host (server) can be reached from guest (esp) with host ip
 - to reach guest from host hostfw is needed
   hostfwd=tcp/upd:hostip:hostport-guestip:guestport
+    - http server: 127.0.0.1:8080 forwarded to 10.0.2.15:80
+    - ota downloader: 
+- guest ip = 10.0.2.15
+- host ip  = 192.168.1.?
 ## Run on Esp
-First put `partition_table = "partitions.csv"` in Cargo.toml 
 ```
 sudo chmod 666 /dev/ttyUSB0
 ```
-build and flash and monitor
+build, flash and monitor
 ```
 . $HOME/export-esp.sh
 cargo espflash --release --monitor /dev/ttyUSB0
@@ -81,10 +83,16 @@ only monitor
 ```
 espflash serial-monitor /dev/ttyUSB0 
 ```
+## ota
+build ota app
+```
+cargo espflash save-image ESP32 app_ota.bin --release
+```
+run `/ota` http command in browser \
+use ota-downloader to download ota app to esp32 (set right path for app)
 ## To Do
 - esp-ota https://github.com/faern/esp-ota/tree/e73cf6f3959ab41ecdb459851e878946ebbb7363/
-    - switch to new firmware works
-    - how to download new firmware to esp? 
+    - qemu bin needs --merge, ota bin no --merge -> hangs after ota restart
 - http server commands: time, sensitivity (connect pwm instead poti?)
 - esp access point for esps far from wifi router
 ## Solved Problems

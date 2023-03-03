@@ -1,4 +1,5 @@
-use std::net::UdpSocket;
+use std::io::Read;
+use std::net::{TcpListener, UdpSocket};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -60,7 +61,7 @@ fn main() {
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
 
-    println!("---------------start---------------");
+    println!("---------------start ota---------------");
     let peripherals = Peripherals::take().unwrap();
     let mut move_input_pin =
         PinDriver::input(peripherals.pins.gpio17).expect("couldn't set gpio to input");
@@ -98,7 +99,7 @@ fn main() {
 
     println!("---------------set up http_server---------------");
     let mut command;
-    let (_http_server, command_main) = http_server(ip.clone()).unwrap();
+    let (http_server, command_main) = http_server(ip.clone()).unwrap();
 
     println!("---------------set up udp---------------");
     let socket =
@@ -115,7 +116,9 @@ fn main() {
         command = command_mutex.clone();
         drop(command_mutex);
         if command.ota == true {
-            //  ota_flash().expect("ota failed");
+            println!("---------------start ota---------------");
+            drop(&http_server);
+            ota_flash(&ip).expect("ota failed");
         }
         if command.status == States::Pause {
             FreeRtos::delay_ms(100);
@@ -409,28 +412,35 @@ fn eth_configure(
     Ok(eth)
 }
 //from https://github.com/faern/esp-ota/tree/e73cf6f3959ab41ecdb459851e878946ebbb7363/
-// fn ota_flash() -> Result<()> {
-//     // This is a very unrealistic example. You usually don't store the new app in the
-//     // old app. Instead you obtain it by downloading it from somewhere or similar.
-//     const NEW_APP: &[u8] = include_bytes!("../app.bin");
-
-//     // Finds the next suitable OTA partition and erases it
-//     let mut ota = esp_ota::OtaUpdate::begin()?;
-
-//     // Write the app to flash. Normally you would download
-//     // the app and call `ota.write` every time you have obtained
-//     // a part of the app image. This example is not realistic,
-//     // since it has the entire new app bundled.
-//     for app_chunk in NEW_APP.chunks(4096) {
-//         ota.write(app_chunk)?;
-//     }
-
-//     // Performs validation of the newly written app image and completes the OTA update.
-//     let mut completed_ota = ota.finalize()?;
-
-//     // Sets the newly written to partition as the next partition to boot from.
-//     completed_ota.set_as_boot_partition()?;
-//     // Restarts the CPU, booting into the newly written app.
-//     completed_ota.restart();
-
-// }
+fn ota_flash(ip: &Ip) -> Result<()> {
+    // Finds the next suitable OTA partition and erases it
+    let mut ota = esp_ota::OtaUpdate::begin()?;
+    //download new app
+    let listener = TcpListener::bind(format!("{}:5003", ip.own))?;
+    let mut app_chunk = [0; 4096];
+    let mut eof = 1;
+    let mut downloaded_bytes = 0;
+    for stream in listener.incoming() {
+        let mut stream = stream?;
+        println!("Connection established: {:?}", stream);
+        while eof != 0 {
+            FreeRtos::delay_ms(11);
+            eof = stream.read(&mut app_chunk[..])?;
+            if eof != 0 {
+                downloaded_bytes += app_chunk[0..eof].len();
+                println!("{}", downloaded_bytes);
+                ota.write(&app_chunk[0..eof])?;
+            }
+        }
+        break;
+    }
+    FreeRtos::delay_ms(11);
+    // Performs validation of the newly written app image and completes the OTA update.
+    let mut completed_ota = ota.finalize()?;
+    FreeRtos::delay_ms(11);
+    // Sets the newly written to partition as the next partition to boot from.
+    completed_ota.set_as_boot_partition()?;
+    // Restarts the CPU, booting into the newly written app.
+    println!("----------Restart----------");
+    completed_ota.restart();
+}
