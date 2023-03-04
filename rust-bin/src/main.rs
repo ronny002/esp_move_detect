@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::net::{TcpListener, UdpSocket};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::gpio::{Level, PinDriver, Pull};
@@ -18,8 +18,8 @@ use esp_idf_svc::wifi::{EspWifi, WifiWait};
 
 use esp_idf_sys::esp_restart;
 
-use embedded_svc::http::Method;
-use embedded_svc::io::Write;
+use embedded_svc::http::{Method, Headers};
+use embedded_svc::io::{Read as Http_Read, Write};
 use embedded_svc::ipv4::Ipv4Addr;
 use embedded_svc::wifi::{
     AccessPointConfiguration, ClientConfiguration, Configuration as WifiConfig, Wifi,
@@ -53,7 +53,7 @@ enum DebugOutput {
 struct Commands {
     status: States,
     const_output: DebugOutput,
-    time: u8,
+    time: u64,
     ota: bool,
 }
 fn main() {
@@ -111,6 +111,7 @@ fn main() {
     println!("---------------start loop---------------");
     let mut toggle_detect = 0;
     let mut move_input;
+    let mut high_time = Instant::now();
     loop {
         let command_mutex = command_main.lock().unwrap();
         command = command_mutex.clone();
@@ -123,7 +124,6 @@ fn main() {
         if command.status == States::Pause {
             FreeRtos::delay_ms(100);
         } else if command.status == States::Run {
-            // we are using thread::sleep here to make sure the watchdog isn't triggered
             FreeRtos::delay_ms(100);
             if Level::High == move_input_pin.get_level() {
                 move_input = 1;
@@ -135,19 +135,26 @@ fn main() {
             } else if command.const_output == DebugOutput::Low {
                 move_input = 0;
             }
-            println!("{}", move_input);
-            if move_input == 1 && toggle_detect == 0 {
-                toggle_detect = 1;
-                println!("High");
-                socket.send(&[1]).expect("couldn't send high message");
-            } else if move_input == 0 && toggle_detect == 1 {
-                toggle_detect = 0;
-                println!("Low");
-                socket.send(&[0]).expect("couldn't send low message");
+           // println!("{}", move_input);
+            let now = Instant::now();
+            if move_input == 1 {
+                high_time = Instant::now();
+                if toggle_detect == 0 {
+                    toggle_detect = 1;
+                    println!("High");
+                    socket.send(&[1]).expect("couldn't send high message");
+                }
+            } else if toggle_detect == 1 && move_input == 0 {
+                if now.duration_since(high_time) > Duration::new(command.time, 0) {
+                    toggle_detect = 0;
+                    println!("Low");
+                    socket.send(&[0]).expect("couldn't send low message");
+                }
             }
         } else if command.status == States::Restart {
             unsafe {
                 esp_restart();
+                unreachable!("esp_restart returned");
             }
         }
     }
@@ -155,19 +162,24 @@ fn main() {
 
 fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
     let mut server_config = Configuration::default();
-    server_config.http_port = 80;
     let mut server = EspHttpServer::new(&server_config)?;
     server.fn_handler("/", Method::Get, move |request| {
         let html = index_html(format!(
-            "own: {}, server: {}<br>commands:<br> 
-            pause<br>run<br>restart<br>debughigh<br>debuglow<br>debugoff<br>ota",
+            r#"
+            own: {}, server: {} 
+            <form action="/submit" method="post">
+            <label for"number">Enter a number:</label>
+            <input type="number" min="1" max="240" id="n" name="n">
+            <button type="submit">Submit</button>
+            </form>
+            commands:<br> 
+            pause<br>run<br>restart<br>debughigh<br>debuglow<br>debugoff<br>ota<br>"#,
             ip.own.clone(),
             ip.server.clone()
         ));
         request.into_ok_response()?.write_all(html.as_bytes())?;
         Ok(())
     })?;
-
     let command_fn = Arc::new(Mutex::new(Commands {
         status: States::Run,
         const_output: DebugOutput::Off,
@@ -181,7 +193,7 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
     let command_thread5 = Arc::clone(&command_fn);
     let command_thread6 = Arc::clone(&command_fn);
     let command_thread7 = Arc::clone(&command_fn);
-
+    let command_thread8 = Arc::clone(&command_fn);
     server
         .fn_handler("/pause", Method::Get, move |request| {
             let mut command = command_thread1.lock().unwrap();
@@ -231,7 +243,18 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
             let html = index_html(format!("status: ota {:?}", command.ota));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
+        })?
+        .fn_handler("/submit", Method::Post, move |mut request| {
+            let mut command = command_thread8.lock().unwrap();
+            let mut buf = [0; 8];
+            
+            println!("read request: {:?} bytes", request.read(&mut buf));
+            command.time = u64::from_be_bytes(buf);
+            println!("{}", command.time);
+
+            Ok(())
         })?;
+
     let command_main = Arc::clone(&command_fn);
 
     Ok((server, command_main))

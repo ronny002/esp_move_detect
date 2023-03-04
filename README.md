@@ -93,6 +93,7 @@ use ota-downloader to download ota app to esp32 (set right path for app)
 ## To Do
 - esp-ota https://github.com/faern/esp-ota/tree/e73cf6f3959ab41ecdb459851e878946ebbb7363/
     - qemu bin needs --merge, ota bin no --merge -> hangs after ota restart
+    - hangs after normal restart so problem not linked to ota but to qemu and esp_restart()
 - http server commands: time, sensitivity (connect pwm instead poti?)
 - esp access point for esps far from wifi router
 ## Solved Problems
