@@ -89,12 +89,11 @@ build ota app
 cargo espflash save-image ESP32 app_ota.bin --release
 ```
 run `/ota` http command in browser \
-use ota-downloader to download ota app to esp32 (set right path for app)
+use ota-downloader to download ota app to esp32 (set right path for app)\
+cargo espflash: qemu bin needs --merge, ota bin no --merge
 ## To Do
-- esp-ota https://github.com/faern/esp-ota/tree/e73cf6f3959ab41ecdb459851e878946ebbb7363/
-    - qemu bin needs --merge, ota bin no --merge -> hangs after ota restart
-    - hangs after normal restart so problem not linked to ota but to qemu and esp_restart()
-- http server commands: time, sensitivity (connect pwm instead poti?)
+- qemu: hangs after esp_restart() so not possible to simulate ota flash
+- movement detection sensitivity (connect pwm instead poti?)
 - esp access point for esps far from wifi router
 ## Solved Problems
 Problem rust-analyser can't find clang: \

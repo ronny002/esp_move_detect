@@ -18,7 +18,7 @@ use esp_idf_svc::wifi::{EspWifi, WifiWait};
 
 use esp_idf_sys::esp_restart;
 
-use embedded_svc::http::{Method, Headers};
+use embedded_svc::http::Method;
 use embedded_svc::io::{Read as Http_Read, Write};
 use embedded_svc::ipv4::Ipv4Addr;
 use embedded_svc::wifi::{
@@ -95,7 +95,8 @@ fn main() {
         own: eth.netif().get_ip_info().unwrap().ip,
         server: "192.168.1.45".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
     };
-    //ping(ip.server).unwrap();
+    #[cfg(not(feature = "qemu"))]
+    ping(ip.server).unwrap();
 
     println!("---------------set up http_server---------------");
     let mut command;
@@ -135,7 +136,7 @@ fn main() {
             } else if command.const_output == DebugOutput::Low {
                 move_input = 0;
             }
-           // println!("{}", move_input);
+            // println!("{}", move_input);
             let now = Instant::now();
             if move_input == 1 {
                 high_time = Instant::now();
@@ -161,31 +162,13 @@ fn main() {
 }
 
 fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
-    let mut server_config = Configuration::default();
-    let mut server = EspHttpServer::new(&server_config)?;
-    server.fn_handler("/", Method::Get, move |request| {
-        let html = index_html(format!(
-            r#"
-            own: {}, server: {} 
-            <form action="/submit" method="post">
-            <label for"number">Enter a number:</label>
-            <input type="number" min="1" max="240" id="n" name="n">
-            <button type="submit">Submit</button>
-            </form>
-            commands:<br> 
-            pause<br>run<br>restart<br>debughigh<br>debuglow<br>debugoff<br>ota<br>"#,
-            ip.own.clone(),
-            ip.server.clone()
-        ));
-        request.into_ok_response()?.write_all(html.as_bytes())?;
-        Ok(())
-    })?;
     let command_fn = Arc::new(Mutex::new(Commands {
         status: States::Run,
         const_output: DebugOutput::Off,
         time: 10,
         ota: false,
     }));
+    let command_thread0 = Arc::clone(&command_fn);
     let command_thread1 = Arc::clone(&command_fn);
     let command_thread2 = Arc::clone(&command_fn);
     let command_thread3 = Arc::clone(&command_fn);
@@ -194,7 +177,29 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
     let command_thread6 = Arc::clone(&command_fn);
     let command_thread7 = Arc::clone(&command_fn);
     let command_thread8 = Arc::clone(&command_fn);
+
+    let server_config = Configuration::default();
+    let mut server = EspHttpServer::new(&server_config)?;
     server
+        .fn_handler("/", Method::Get, move |request| {
+            let command = command_thread0.lock().unwrap();
+            let html = index_html(format!(
+                r#"
+            own: {}, server: {} 
+            <form action="/submit" method="post">
+            <label for"number">Enter movement follow-up time [sec]:</label>
+            <input type="number" min="1" max="1800" value="{}" id="n" name="n">
+            <button type="submit">Submit</button>
+            </form>
+            commands:<br> 
+            pause<br>run<br>restart<br>debughigh<br>debuglow<br>debugoff<br>ota<br>"#,
+                ip.own.clone(),
+                ip.server.clone(),
+                command.time
+            ));
+            request.into_ok_response()?.write_all(html.as_bytes())?;
+            Ok(())
+        })?
         .fn_handler("/pause", Method::Get, move |request| {
             let mut command = command_thread1.lock().unwrap();
             command.status = States::Pause;
@@ -247,11 +252,16 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
         .fn_handler("/submit", Method::Post, move |mut request| {
             let mut command = command_thread8.lock().unwrap();
             let mut buf = [0; 8];
-            
-            println!("read request: {:?} bytes", request.read(&mut buf));
-            command.time = u64::from_be_bytes(buf);
-            println!("{}", command.time);
-
+            request.read(&mut buf)?;
+            command.time = buf[2..]
+                .iter()
+                .filter(|&x| *x != 0)
+                .map(|x| *x as char)
+                .collect::<String>()
+                .parse::<u64>()
+                .unwrap();
+            let html = index_html(format!("movement follow-up time = {:?}", command.time));
+            request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?;
 
@@ -383,11 +393,12 @@ fn wifi(
 
     println!("Wifi DHCP info: {:?}", ip_info);
 
-    ping(ip_info.subnet.gateway)?;
+    //ping(ip_info.subnet.gateway)?;
 
     Ok(wifi)
 }
 //from https://github.com/ivmarkov/rust-esp32-std-demo/blob/main/src/main.rs
+#[cfg(not(feature = "qemu"))]
 fn ping(ip: Ipv4Addr) -> Result<()> {
     println!("About to do some pings for {:?}", ip);
 
