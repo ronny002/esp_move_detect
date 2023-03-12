@@ -111,6 +111,9 @@ https://onecompiler.com/html/3z2e9pxb2
 - licences
 - increase features of html website
 - schematics
+- monitor over wifi
+- not working with high amps
+- toggle low/high when small follow-up time
 ## Solved Problems
 Problem rust-analyser can't find clang: \
 put this in vscode -> user settings (settings.json)

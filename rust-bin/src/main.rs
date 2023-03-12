@@ -61,14 +61,15 @@ fn main() {
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
 
-    println!("---------------start version 1.0.1---------------");
+    println!("---------------start version 1.0.2---------------");
     let peripherals = Peripherals::take().unwrap();
     let mut move_input_pin =
-        PinDriver::input(peripherals.pins.gpio17).expect("couldn't set gpio to input");
+        PinDriver::input(peripherals.pins.gpio17).expect("couldn't set gpio 17 to input");
     move_input_pin
         .set_pull(Pull::Down)
         .expect("couldn't set input pin to pull down");
-
+    let mut move_output_pin =
+    PinDriver::output(peripherals.pins.gpio18).expect("couldn't set gpio 18 to input");
     println!("---------------set up wifi---------------");
     let sysloop = EspSystemEventLoop::take().unwrap();
     #[cfg(not(feature = "qemu"))]
@@ -143,12 +144,14 @@ fn main() {
                 if toggle_detect == 0 {
                     toggle_detect = 1;
                     println!("High");
-                    socket.send(&[1]).expect("couldn't send high message");
+                    move_output_pin.set_high().expect("couldn't send pin high message");
+                    socket.send(&[1]).expect("couldn't send udp high message");
                 }
             } else if toggle_detect == 1 && move_input == 0 {
                 if now.duration_since(high_time) > Duration::new(command.time, 0) {
                     toggle_detect = 0;
                     println!("Low");
+                    move_output_pin.set_low().expect("couldn't send pin low message");
                     socket.send(&[0]).expect("couldn't send low message");
                 }
             }
