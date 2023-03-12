@@ -1,6 +1,8 @@
 # Rust program for Esp32 to detect movement via IR sensor
 Esp32 program which uses a HW-416 passive infra red sensor (5V) to detect movement and sends the sensor state to Loxone server using udp. Also the Esp hosts a http server, so the user can change settings on the esp through a browser. Ota firmware flashing is implemented.
 
+IR sensor: G17
+
 ## Set up QEMU to simulate Esp32 hardware
 build prerequisites see https://wiki.qemu.org/Hosts/Linux
 ```
@@ -104,6 +106,11 @@ https://onecompiler.com/html/3z2e9pxb2
 - qemu: hangs after esp_restart() so not possible to simulate ota flash
 - movement detection sensitivity (connect pwm instead poti?)
 - esp access point for esps far from wifi router
+- W (57068) httpd_txrx: httpd_sock_err: error in send : 104 thread '<unnamed>' panicked at 'connection is not in request phase'
+- test and improve UX
+- licences
+- increase features of html website
+- schematics
 ## Solved Problems
 Problem rust-analyser can't find clang: \
 put this in vscode -> user settings (settings.json)
@@ -118,6 +125,7 @@ see https://githubhelp.com/esp-rs/esp-idf-template/issues/49
 Esp Book https://esp-rs.github.io/book/ \
 Nice example program https://github.com/ivmarkov/rust-esp32-std-demo \
 IR sensor https://electropeak.com/learn/pir-motion-sensor-how-pir-work-how-use-with-arduino/
+Browser Simulate https://wokwi.com/rust
 
 
 
