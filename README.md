@@ -84,6 +84,10 @@ only monitor
 espflash serial-monitor /dev/ttyUSB0 
 ```
 ## ota
+Do not forget
+```
+. $HOME/export-esp.sh
+```
 build ota app
 ```
 cargo espflash save-image ESP32 app_ota.bin --release
@@ -91,6 +95,11 @@ cargo espflash save-image ESP32 app_ota.bin --release
 run `/ota` http command in browser \
 use ota-downloader to download ota app to esp32 (set right path for app)\
 cargo espflash: qemu bin needs --merge, ota bin no --merge
+
+## http server: html file
+```
+https://onecompiler.com/html/3z2e9pxb2
+```
 ## To Do
 - qemu: hangs after esp_restart() so not possible to simulate ota flash
 - movement detection sensitivity (connect pwm instead poti?)

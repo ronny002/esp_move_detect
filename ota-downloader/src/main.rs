@@ -7,7 +7,7 @@ fn main() {
     include_bytes!("/home/ronny/Documents/code/rust/esp_move_detect/rust-bin/app_ota.bin");
     println!("Total length of app: {:?}", NEW_APP.len());
 
-    let mut stream = TcpStream::connect("127.0.0.1:5003").unwrap(); //esp ip
+    let mut stream = TcpStream::connect("192.168.1.165:5003").unwrap(); //esp ip
     for app_chunk in NEW_APP.chunks(4096) {
         println!("{:?}", app_chunk.len());
         stream.write(app_chunk).unwrap();

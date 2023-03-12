@@ -61,7 +61,7 @@ fn main() {
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
 
-    println!("---------------start ota---------------");
+    println!("---------------start version 1.0.1---------------");
     let peripherals = Peripherals::take().unwrap();
     let mut move_input_pin =
         PinDriver::input(peripherals.pins.gpio17).expect("couldn't set gpio to input");
@@ -185,7 +185,10 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
             let command = command_thread0.lock().unwrap();
             let html = index_html(format!(
                 r#"
-            own: {}, server: {} 
+            own: {}, server: {} <br>
+            UDP port: 4002 -> 4003 <br>
+            OTA TCP port: 5003 <br>
+            HTTP port: 80 <br>
             <form action="/submit" method="post">
             <label for"number">Enter movement follow-up time [sec]:</label>
             <input type="number" min="1" max="1800" value="{}" id="n" name="n">
@@ -262,6 +265,12 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
                 .unwrap();
             let html = index_html(format!("movement follow-up time = {:?}", command.time));
             request.into_ok_response()?.write_all(html.as_bytes())?;
+            Ok(())
+        })?
+        .fn_handler("/favicon.ico", Method::Get, move |request| {
+            const ICON: &[u8] =
+    include_bytes!("/home/ronny/Documents/code/rust/esp_move_detect/rust-bin/favicon.ico");
+            request.into_ok_response()?.write_all(ICON)?;
             Ok(())
         })?;
 
