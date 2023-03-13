@@ -3,8 +3,8 @@ use std::thread::sleep;
 use std::time::Duration;
 fn main() {
     //server
-    let udp_socket = UdpSocket::bind("192.168.1.45:4003").unwrap();
-    println!("Successfully bind to 192.168.1.45:4003");
+    let udp_socket = UdpSocket::bind("192.168.1.70:4003").unwrap();
+    println!("Successfully bind to 192.168.1.70:4003");
 
     let mut udp_buf = [0; 1];
 

@@ -51,17 +51,30 @@ enum DebugOutput {
 }
 #[derive(Debug, Clone)]
 struct Commands {
+    sensor_input: bool,
+    esp_output: bool,
     status: States,
     const_output: DebugOutput,
     time: u64,
     ota: bool,
 }
+impl Default for Commands{
+    fn default () -> Self{
+        Commands {
+        sensor_input: false,
+        esp_output: false,
+        status: States::Run,
+        const_output: DebugOutput::Off,
+        time: 10,
+        ota: false,
+    }}
+}
 fn main() {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
-
-    println!("---------------start version 1.0.2---------------");
+    let version = String::from("version 1.0.3");
+    println!("---------------start {}---------------", version);
     let peripherals = Peripherals::take().unwrap();
     let mut move_input_pin =
         PinDriver::input(peripherals.pins.gpio17).expect("couldn't set gpio 17 to input");
@@ -69,7 +82,8 @@ fn main() {
         .set_pull(Pull::Down)
         .expect("couldn't set input pin to pull down");
     let mut move_output_pin =
-    PinDriver::output(peripherals.pins.gpio18).expect("couldn't set gpio 18 to input");
+        PinDriver::output(peripherals.pins.gpio18).expect("couldn't set gpio 18 to input");
+
     println!("---------------set up wifi---------------");
     let sysloop = EspSystemEventLoop::take().unwrap();
     #[cfg(not(feature = "qemu"))]
@@ -89,7 +103,7 @@ fn main() {
     #[cfg(not(feature = "qemu"))]
     let ip = Ip {
         own: wifi.sta_netif().get_ip_info().unwrap().ip,
-        server: "192.168.1.222".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+        server: "192.168.1.70".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
     };
     #[cfg(feature = "qemu")]
     let ip = Ip {
@@ -101,7 +115,7 @@ fn main() {
 
     println!("---------------set up http_server---------------");
     let mut command;
-    let (http_server, command_main) = http_server(ip.clone()).unwrap();
+    let (http_server, command_main) = http_server(ip.clone(), version).unwrap();
 
     println!("---------------set up udp---------------");
     let socket =
@@ -111,8 +125,8 @@ fn main() {
         .expect("socket connect function failed");
 
     println!("---------------start loop---------------");
-    let mut toggle_detect = 0;
-    let mut move_input;
+    let mut toggle_detect: bool = false;
+    let mut move_input: bool;
     let mut high_time = Instant::now();
     loop {
         let command_mutex = command_main.lock().unwrap();
@@ -128,30 +142,37 @@ fn main() {
         } else if command.status == States::Run {
             FreeRtos::delay_ms(100);
             if Level::High == move_input_pin.get_level() {
-                move_input = 1;
+                move_input = true;
             } else {
-                move_input = 0;
+                move_input = false;
             }
             if command.const_output == DebugOutput::High {
-                move_input = 1;
+                move_input = true;
             } else if command.const_output == DebugOutput::Low {
-                move_input = 0;
+                move_input = false;
             }
+            command_main.lock().unwrap().sensor_input = move_input;
             // println!("{}", move_input);
             let now = Instant::now();
-            if move_input == 1 {
+            if move_input == true {
                 high_time = Instant::now();
-                if toggle_detect == 0 {
-                    toggle_detect = 1;
+                if toggle_detect == false {
+                    toggle_detect = true;
                     println!("High");
-                    move_output_pin.set_high().expect("couldn't send pin high message");
+                    command_main.lock().unwrap().esp_output = true;
+                    move_output_pin
+                        .set_high()
+                        .expect("couldn't send pin high message");
                     socket.send(&[1]).expect("couldn't send udp high message");
                 }
-            } else if toggle_detect == 1 && move_input == 0 {
+            } else if toggle_detect == true && move_input == false {
                 if now.duration_since(high_time) > Duration::new(command.time, 0) {
-                    toggle_detect = 0;
+                    toggle_detect = false;
                     println!("Low");
-                    move_output_pin.set_low().expect("couldn't send pin low message");
+                    command_main.lock().unwrap().esp_output = false;
+                    move_output_pin
+                        .set_low()
+                        .expect("couldn't send pin low message");
                     socket.send(&[0]).expect("couldn't send low message");
                 }
             }
@@ -164,13 +185,8 @@ fn main() {
     }
 }
 
-fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
-    let command_fn = Arc::new(Mutex::new(Commands {
-        status: States::Run,
-        const_output: DebugOutput::Off,
-        time: 10,
-        ota: false,
-    }));
+fn http_server(ip: Ip, version: String) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
+    let command_fn = Arc::new(Mutex::new(Commands::default()));
     let command_thread0 = Arc::clone(&command_fn);
     let command_thread1 = Arc::clone(&command_fn);
     let command_thread2 = Arc::clone(&command_fn);
@@ -188,70 +204,102 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
             let command = command_thread0.lock().unwrap();
             let html = index_html(format!(
                 r#"
-            own: {}, server: {} <br>
-            UDP port: 4002 -> 4003 <br>
-            OTA TCP port: 5003 <br>
-            HTTP port: 80 <br>
-            <form action="/submit" method="post">
-            <label for"number">Enter movement follow-up time [sec]:</label>
-            <input type="number" min="1" max="1800" value="{}" id="n" name="n">
-            <button type="submit">Submit</button>
-            </form>
-            commands:<br> 
-            pause<br>run<br>restart<br>debughigh<br>debuglow<br>debugoff<br>ota<br>"#,
+                Esp32 presence detection {} <br> <br>
+                own: {}, server: {} <br>
+                UDP port: 4002 -> 4003 <br>
+                OTA TCP port: 5003 <br>
+                HTTP port: 80 <br> <br>
+                sensor input: {}, esp output: {} <br> <br>
+                commands:<br> 
+                <form action="/pause" method="post">
+                <button type="submit">Pause</button>
+                </form>
+                <form action="/run" method="post">
+                <button type="submit">Run</button>
+                <label>status: {:?}</label>
+                </form>
+                <form action="/restart" method="post">
+                <button type="submit">Restart</button>
+                </form>
+                <form action="/debughigh" method="post">
+                <button type="submit">DebugHigh</button>
+                </form>
+                <form action="/debuglow" method="post">
+                <button type="submit">DebugLow</button>
+                <label>debug output: {:?}</label>
+                </form>
+                <form action="/debugoff" method="post">
+                <button type="submit">DebugOff</button>
+                </form>
+                <form action="/ota" method="post">
+                <button type="submit">Ota</button>
+                <label> ota: {}</label>
+                </form>
+                <form action="/submit" method="post">
+                <label for"number">Enter movement follow-up time [sec]:</label>
+                <input type="number" min="1" max="1800" value="{}" id="n" name="n">
+                <button type="submit">Submit</button>
+                </form>
+            "#,
+                version,
                 ip.own.clone(),
                 ip.server.clone(),
-                command.time
+                command.sensor_input,
+                command.esp_output,
+                command.status,
+                command.const_output,
+                command.ota,
+                command.time,
             ));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?
-        .fn_handler("/pause", Method::Get, move |request| {
+        .fn_handler("/pause", Method::Post, move |request| {
             let mut command = command_thread1.lock().unwrap();
             command.status = States::Pause;
-            let html = index_html(format!("status: {:?}", command.status));
+            let html = action_html(format!("status: {:?}", command.status));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?
-        .fn_handler("/run", Method::Get, move |request| {
+        .fn_handler("/run", Method::Post, move |request| {
             let mut command = command_thread2.lock().unwrap();
             command.status = States::Run;
-            let html = index_html(format!("status: {:?}", command.status));
+            let html = action_html(format!("status: {:?}", command.status));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?
-        .fn_handler("/restart", Method::Get, move |request| {
+        .fn_handler("/restart", Method::Post, move |request| {
             let mut command = command_thread3.lock().unwrap();
             command.status = States::Restart;
-            let html = index_html(format!("status: {:?}", command.status));
+            let html = action_html(format!("status: {:?}", command.status));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?
-        .fn_handler("/debughigh", Method::Get, move |request| {
+        .fn_handler("/debughigh", Method::Post, move |request| {
             let mut command = command_thread4.lock().unwrap();
             command.const_output = DebugOutput::High;
-            let html = index_html(format!("status: debug {:?}", command.const_output));
+            let html = action_html(format!("status: debug {:?}", command.const_output));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?
-        .fn_handler("/debuglow", Method::Get, move |request| {
+        .fn_handler("/debuglow", Method::Post, move |request| {
             let mut command = command_thread5.lock().unwrap();
             command.const_output = DebugOutput::Low;
-            let html = index_html(format!("status: debug {:?}", command.const_output));
+            let html = action_html(format!("status: debug {:?}", command.const_output));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?
-        .fn_handler("/debugoff", Method::Get, move |request| {
+        .fn_handler("/debugoff", Method::Post, move |request| {
             let mut command = command_thread6.lock().unwrap();
             command.const_output = DebugOutput::Off;
-            let html = index_html(format!("status: debug {:?}", command.const_output));
+            let html = action_html(format!("status: debug {:?}", command.const_output));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?
-        .fn_handler("/ota", Method::Get, move |request| {
+        .fn_handler("/ota", Method::Post, move |request| {
             let mut command = command_thread7.lock().unwrap();
             command.ota = true;
-            let html = index_html(format!("status: ota {:?}", command.ota));
+            let html = action_html(format!("status: ota {:?}", command.ota));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?
@@ -266,13 +314,14 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
                 .collect::<String>()
                 .parse::<u64>()
                 .unwrap();
-            let html = index_html(format!("movement follow-up time = {:?}", command.time));
+            let html = action_html(format!("movement follow-up time = {:?}", command.time));
             request.into_ok_response()?.write_all(html.as_bytes())?;
             Ok(())
         })?
         .fn_handler("/favicon.ico", Method::Get, move |request| {
-            const ICON: &[u8] =
-    include_bytes!("/home/ronny/Documents/code/rust/esp_move_detect/rust-bin/favicon.ico");
+            const ICON: &[u8] = include_bytes!(
+                "/home/ronny/Documents/code/rust/esp_move_detect/rust-bin/favicon.ico"
+            );
             request.into_ok_response()?.write_all(ICON)?;
             Ok(())
         })?;
@@ -282,7 +331,23 @@ fn http_server(ip: Ip) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
     Ok((server, command_main))
 }
 
-fn templated(content: impl AsRef<str>) -> String {
+fn templated_action(content: impl AsRef<str>) -> String {
+    format!(
+        r#"
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="refresh" content="1;url=/" />
+    </head>
+    <body>
+        {}
+    </body>
+</html>
+"#,
+        content.as_ref()
+    )
+}
+fn templated_index(content: impl AsRef<str>) -> String {
     format!(
         r#"
 <!DOCTYPE html>
@@ -301,7 +366,10 @@ fn templated(content: impl AsRef<str>) -> String {
 }
 
 fn index_html(content: String) -> String {
-    templated(content)
+    templated_index(content)
+}
+fn action_html(content: String) -> String {
+    templated_action(content)
 }
 
 //from https://medium.com/@rajeshpachaikani/connect-esp32-to-wifi-with-rust-7d12532f539b
