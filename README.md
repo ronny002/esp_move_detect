@@ -69,7 +69,6 @@ see https://www.sbarjatiya.com/notes_wiki/index.php/Qemu_networking
 - to reach guest from host hostfw is needed
   hostfwd=tcp/upd:hostip:hostport-guestip:guestport
     - http server: 127.0.0.1:8080 forwarded to 10.0.2.15:80
-    - ota downloader: 
 - guest ip = 10.0.2.15
 - host ip  = 192.168.1.?
 ## Run on Esp

@@ -10,17 +10,17 @@ fn main() {
     //client
     let socket = UdpSocket::bind("192.168.1.70:4002").expect("socket couldn't bind to address");
     socket
-        .connect("192.168.1.38:4003") //server
+        .connect("192.168.1.70:4003") //server
         .expect("socket connect function failed");
 
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-    let handle = thread::spawn(move || {
-        for stream in listener.incoming() {
-            let stream = stream.unwrap();
-            println!("Connection established!");
-            handle_connection(stream)
-        }
-    });
+    // let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    // let handle = thread::spawn(move || {
+    //     for stream in listener.incoming() {
+    //         let stream = stream.unwrap();
+    //         println!("Connection established!");
+    //         handle_connection(stream)
+    //     }
+    // });
 
     println!("loop");
     let mut count = 0;
@@ -30,9 +30,9 @@ fn main() {
         println!("run");
         count += 1;
         if count > 254 {count = 0;}
-        socket.send(&[count]).expect("couldn't send low message"); //easyer to see change on server
+        socket.send(&[count]).expect("couldn't send message"); //easyer to see change on server
     }
-    handle.join().unwrap();
+    //handle.join().unwrap();
 }
 
 fn handle_connection(mut stream: TcpStream) {

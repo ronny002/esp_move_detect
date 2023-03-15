@@ -58,16 +58,17 @@ struct Commands {
     time: u64,
     ota: bool,
 }
-impl Default for Commands{
-    fn default () -> Self{
+impl Default for Commands {
+    fn default() -> Self {
         Commands {
-        sensor_input: false,
-        esp_output: false,
-        status: States::Run,
-        const_output: DebugOutput::Off,
-        time: 10,
-        ota: false,
-    }}
+            sensor_input: false,
+            esp_output: false,
+            status: States::Run,
+            const_output: DebugOutput::Off,
+            time: 10,
+            ota: false,
+        }
+    }
 }
 fn main() {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -123,11 +124,19 @@ fn main() {
     socket
         .connect(format!("{}:4003", ip.server))
         .expect("socket connect function failed");
+    // let socket_ap = UdpSocket::bind(format!("{}:4002", "192.168.1.33"))
+    //     .expect("socket_ap couldn't bind to address");
+    // socket_ap
+    //     .connect(format!("{}:4003", ip.server))
+    //     .expect("socket_ap connect function failed");
+    let rx_udp_socket =
+        UdpSocket::bind("192.168.71.2:4003").expect("rx_udp_socket couldn't bind to address"); //ip from far out esp
 
     println!("---------------start loop---------------");
     let mut toggle_detect: bool = false;
     let mut move_input: bool;
     let mut high_time = Instant::now();
+    let mut udp_forward_buf = [0; 1];
     loop {
         let command_mutex = command_main.lock().unwrap();
         command = command_mutex.clone();
@@ -176,6 +185,13 @@ fn main() {
                     socket.send(&[0]).expect("couldn't send low message");
                 }
             }
+            rx_udp_socket
+                .recv_from(&mut udp_forward_buf)
+                .expect("couldn't receive udp");
+            println!("{:?}", udp_forward_buf);
+            // socket_ap
+            //     .send(&udp_forward_buf)
+            //     .expect("couldn't forward udp");
         } else if command.status == States::Restart {
             unsafe {
                 esp_restart();
@@ -184,7 +200,6 @@ fn main() {
         }
     }
 }
-
 fn http_server(ip: Ip, version: String) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
     let command_fn = Arc::new(Mutex::new(Commands::default()));
     let command_thread0 = Arc::clone(&command_fn);
@@ -439,7 +454,7 @@ fn wifi(
             ..Default::default()
         },
         AccessPointConfiguration {
-            ssid: "esp".into(),
+            ssid: "esp32_presence_detector".into(),
             channel: channel.unwrap_or(1),
             ..Default::default()
         },
