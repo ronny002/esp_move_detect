@@ -98,19 +98,26 @@ use ota-downloader (`cargo run`) to download ota app to esp32 (set right path fo
 hint to cargo espflash: qemu bin needs --merge, ota bin no --merge
 
 ## http server: html file
-https://onecompiler.com/html/3z2e9pxb2
+https://onecompiler.com/html/3z2tt824q
+
+## NAPT Router
+When Esp is far away from wifi router, it's possible to use different Esp closer to wifi as wifi extender. 
+
+- to configure Esp as wifi extender use `rustflags = "--cfg esp_idf_lwip_ipv4_napt"` in .cargo/config.toml \
+- wifi extender hosts `esp32_presence_detector` wifi, set password in wifi_info_fill_out.rs \
+- udp pakets comming from Esp far out are forwarded over wifi extender Esp to loxone server
+
 ## To Do
 - qemu: hangs after esp_restart() so not possible to simulate ota flash
 - movement detection sensitivity (connect pwm instead poti?)
-- esp access point for esps far from wifi router
-- W (57068) httpd_txrx: httpd_sock_err: error in send : 104 thread '<unnamed>' panicked at 'connection is not in request phase'
 - test and improve UX
 - licences
 - increase features of html website
 - schematics
 - monitor over wifi
 - not working with high amps
-- toggle low/high when small follow-up time
+- low/high toggles with movement present when small follow-up time
+
 ## Solved Problems
 Problem rust-analyser can't find clang: \
 put this in vscode -> user settings (settings.json)

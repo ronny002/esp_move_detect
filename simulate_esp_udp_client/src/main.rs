@@ -8,9 +8,9 @@ use std::{
 
 fn main() {
     //client
-    let socket = UdpSocket::bind("192.168.1.70:4002").expect("socket couldn't bind to address");
+    let socket = UdpSocket::bind("192.168.71.2:4002").expect("socket couldn't bind to address"); //own ip
     socket
-        .connect("192.168.1.70:4003") //server
+        .connect("192.168.1.38:4004") //server ip
         .expect("socket connect function failed");
 
     // let listener = TcpListener::bind("127.0.0.1:7878").unwrap();

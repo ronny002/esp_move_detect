@@ -16,6 +16,7 @@ use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::ping::EspPing;
 use esp_idf_svc::wifi::{EspWifi, WifiWait};
 
+use esp_idf_sys;
 use esp_idf_sys::esp_restart;
 
 use embedded_svc::http::Method;
@@ -89,7 +90,7 @@ fn main() {
     let sysloop = EspSystemEventLoop::take().unwrap();
     #[cfg(not(feature = "qemu"))]
     //let _wifi =  wifi_simple(peripherals.modem, sysloop).expect("couldn't connect to wifi");
-    let wifi = wifi(peripherals.modem, sysloop).expect("couldn't connect to wifi");
+    let mut wifi = wifi(peripherals.modem, sysloop).expect("couldn't connect to wifi");
     #[cfg(feature = "qemu")]
     let eth = eth_configure(
         &sysloop,
@@ -101,10 +102,13 @@ fn main() {
         ),
     )
     .unwrap();
+#[cfg(not(feature = "qemu"))]
+#[cfg(esp_idf_lwip_ipv4_napt)]
+    enable_napt(&mut wifi).expect("couldn't enable napt");
     #[cfg(not(feature = "qemu"))]
     let ip = Ip {
         own: wifi.sta_netif().get_ip_info().unwrap().ip,
-        server: "192.168.1.70".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+        server: "192.168.1.38".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
     };
     #[cfg(feature = "qemu")]
     let ip = Ip {
@@ -124,19 +128,11 @@ fn main() {
     socket
         .connect(format!("{}:4003", ip.server))
         .expect("socket connect function failed");
-    // let socket_ap = UdpSocket::bind(format!("{}:4002", "192.168.1.33"))
-    //     .expect("socket_ap couldn't bind to address");
-    // socket_ap
-    //     .connect(format!("{}:4003", ip.server))
-    //     .expect("socket_ap connect function failed");
-    let rx_udp_socket =
-        UdpSocket::bind("192.168.71.2:4003").expect("rx_udp_socket couldn't bind to address"); //ip from far out esp
 
     println!("---------------start loop---------------");
     let mut toggle_detect: bool = false;
     let mut move_input: bool;
     let mut high_time = Instant::now();
-    let mut udp_forward_buf = [0; 1];
     loop {
         let command_mutex = command_main.lock().unwrap();
         command = command_mutex.clone();
@@ -185,13 +181,6 @@ fn main() {
                     socket.send(&[0]).expect("couldn't send low message");
                 }
             }
-            rx_udp_socket
-                .recv_from(&mut udp_forward_buf)
-                .expect("couldn't receive udp");
-            println!("{:?}", udp_forward_buf);
-            // socket_ap
-            //     .send(&udp_forward_buf)
-            //     .expect("couldn't forward udp");
         } else if command.status == States::Restart {
             unsafe {
                 esp_restart();
@@ -455,6 +444,7 @@ fn wifi(
         },
         AccessPointConfiguration {
             ssid: "esp32_presence_detector".into(),
+            password: PASS_AP.into(),
             channel: channel.unwrap_or(1),
             ..Default::default()
         },
@@ -488,8 +478,6 @@ fn wifi(
 
     println!("Wifi DHCP info: {:?}", ip_info);
 
-    //ping(ip_info.subnet.gateway)?;
-
     Ok(wifi)
 }
 //from https://github.com/ivmarkov/rust-esp32-std-demo/blob/main/src/main.rs
@@ -503,6 +491,15 @@ fn ping(ip: Ipv4Addr) -> Result<()> {
     }
 
     println!("Pinging done");
+
+    Ok(())
+}
+#[cfg(not(feature = "qemu"))]
+#[cfg(esp_idf_lwip_ipv4_napt)]
+fn enable_napt(wifi: &mut EspWifi) -> Result<()> {
+     wifi.ap_netif_mut().enable_napt(true);
+
+    println!("NAPT enabled on the WiFi SoftAP!");
 
     Ok(())
 }
