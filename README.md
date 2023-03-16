@@ -101,11 +101,12 @@ hint to cargo espflash: qemu bin needs --merge, ota bin no --merge
 https://onecompiler.com/html/3z2tt824q
 
 ## NAPT Router
-When Esp is far away from wifi router, it's possible to use different Esp closer to wifi as wifi extender. 
+When esp is far away from wifi router, it's possible to use different esp closer to wifi as wifi extender. Udp packets comming from esp far out are forwarded over esp wifi extender to loxone server
 
-- to configure Esp as wifi extender use `rustflags = "--cfg esp_idf_lwip_ipv4_napt"` in .cargo/config.toml \
-- wifi extender hosts `esp32_presence_detector` wifi, set password in wifi_info_fill_out.rs \
-- udp pakets comming from Esp far out are forwarded over wifi extender Esp to loxone server
+- to configure esp as wifi extender uncommend everything after `NAPT demo (router)` in rust-bin/sdkconfig.defaults 
+- wifi extender hosts `esp32_presence_detector` wifi, set password in wifi_info_fill_out.rs 
+- esp far out needs to change target wifi to `esp32_presence_detector`
+- to access http server of esp far out connect to `esp32_presence_detector` wifi and use 192.168.71.2
 
 ## To Do
 - qemu: hangs after esp_restart() so not possible to simulate ota flash

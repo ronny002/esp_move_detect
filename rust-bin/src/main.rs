@@ -16,7 +16,6 @@ use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::ping::EspPing;
 use esp_idf_svc::wifi::{EspWifi, WifiWait};
 
-use esp_idf_sys;
 use esp_idf_sys::esp_restart;
 
 use embedded_svc::http::Method;
@@ -37,6 +36,7 @@ use wifi_info::*;
 struct Ip {
     own: Ipv4Addr,
     server: Ipv4Addr,
+    server_udp_port: String
 }
 #[derive(PartialEq, Debug, Clone)]
 enum States {
@@ -87,9 +87,9 @@ fn main() {
         PinDriver::output(peripherals.pins.gpio18).expect("couldn't set gpio 18 to input");
 
     println!("---------------set up wifi---------------");
+    println!("SSID: {}", SSID);
     let sysloop = EspSystemEventLoop::take().unwrap();
     #[cfg(not(feature = "qemu"))]
-    //let _wifi =  wifi_simple(peripherals.modem, sysloop).expect("couldn't connect to wifi");
     let mut wifi = wifi(peripherals.modem, sysloop).expect("couldn't connect to wifi");
     #[cfg(feature = "qemu")]
     let eth = eth_configure(
@@ -102,18 +102,20 @@ fn main() {
         ),
     )
     .unwrap();
-#[cfg(not(feature = "qemu"))]
-#[cfg(esp_idf_lwip_ipv4_napt)]
+    #[cfg(not(feature = "qemu"))]
+    #[cfg(esp_idf_lwip_ipv4_napt)]
     enable_napt(&mut wifi).expect("couldn't enable napt");
     #[cfg(not(feature = "qemu"))]
     let ip = Ip {
         own: wifi.sta_netif().get_ip_info().unwrap().ip,
         server: "192.168.1.38".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+        server_udp_port: "4004".into()
     };
     #[cfg(feature = "qemu")]
     let ip = Ip {
         own: eth.netif().get_ip_info().unwrap().ip,
         server: "192.168.1.45".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+        server_udp_port: "4003".into()
     };
     #[cfg(not(feature = "qemu"))]
     ping(ip.server).unwrap();
@@ -126,7 +128,7 @@ fn main() {
     let socket =
         UdpSocket::bind(format!("{}:4002", ip.own)).expect("socket couldn't bind to address");
     socket
-        .connect(format!("{}:4003", ip.server))
+        .connect(format!("{}:{}", ip.server, ip.server_udp_port)) 
         .expect("socket connect function failed");
 
     println!("---------------start loop---------------");
@@ -139,7 +141,7 @@ fn main() {
         drop(command_mutex);
         if command.ota == true {
             println!("---------------start ota---------------");
-            drop(&http_server);
+            //drop(http_server);
             ota_flash(&ip).expect("ota failed");
         }
         if command.status == States::Pause {
@@ -375,40 +377,14 @@ fn index_html(content: String) -> String {
 fn action_html(content: String) -> String {
     templated_action(content)
 }
-
-//from https://medium.com/@rajeshpachaikani/connect-esp32-to-wifi-with-rust-7d12532f539b
-#[cfg(not(feature = "qemu"))]
-#[allow(dead_code)]
-fn wifi_simple(modem: Modem, sys_loop: EspEventLoop<System>) -> Result<EspWifi<'static>> {
-    let nvs = EspDefaultNvsPartition::take()?;
-
-    let mut wifi_driver = EspWifi::new(modem, sys_loop, Some(nvs))?;
-
-    wifi_driver.set_configuration(&WifiConfig::Client(ClientConfiguration {
-        ssid: SSID.into(),
-        password: PASS.into(),
-        ..Default::default()
-    }))?;
-
-    wifi_driver.start()?;
-    wifi_driver.connect()?;
-    while !wifi_driver.is_connected()? {
-        let config = wifi_driver.get_configuration()?;
-        println!("Waiting for station {:?}", config);
-    }
-    println!("Should be connected now");
-    for _ in 0..3 {
-        println!("IP info: {:?}", wifi_driver.sta_netif().get_ip_info()?);
-        FreeRtos::delay_ms(1000);
-    }
-    Ok(wifi_driver)
-}
 //from https://github.com/ivmarkov/rust-esp32-std-demo/blob/main/src/main.rs
 #[cfg(not(feature = "qemu"))]
 fn wifi(
     modem: impl peripheral::Peripheral<P = esp_idf_hal::modem::Modem> + 'static,
     sysloop: EspSystemEventLoop,
 ) -> Result<Box<EspWifi<'static>>> {
+    use embedded_svc::wifi::AuthMethod;
+
     let mut wifi = Box::new(EspWifi::new(
         modem,
         sysloop.clone(),
@@ -434,7 +410,8 @@ fn wifi(
         );
         None
     };
-
+    #[cfg(not(feature = "qemu"))]
+    #[cfg(esp_idf_lwip_ipv4_napt)]
     wifi.set_configuration(&WifiConfig::Mixed(
         ClientConfiguration {
             ssid: SSID.into(),
@@ -443,11 +420,22 @@ fn wifi(
             ..Default::default()
         },
         AccessPointConfiguration {
-            ssid: "esp32_presence_detector".into(),
+            ssid: SSID_AP.into(),
             password: PASS_AP.into(),
             channel: channel.unwrap_or(1),
+            auth_method: AuthMethod::WPA2Personal,
             ..Default::default()
         },
+    ))?;
+
+    #[cfg (not(esp_idf_lwip_ipv4_napt))]
+    wifi.set_configuration(&WifiConfig::Client(
+        ClientConfiguration {
+            ssid: SSID.into(),
+            password: PASS.into(),
+            channel,
+            ..Default::default()
+        }
     ))?;
 
     wifi.start()?;
@@ -497,7 +485,7 @@ fn ping(ip: Ipv4Addr) -> Result<()> {
 #[cfg(not(feature = "qemu"))]
 #[cfg(esp_idf_lwip_ipv4_napt)]
 fn enable_napt(wifi: &mut EspWifi) -> Result<()> {
-     wifi.ap_netif_mut().enable_napt(true);
+    wifi.ap_netif_mut().enable_napt(true);
 
     println!("NAPT enabled on the WiFi SoftAP!");
 
@@ -546,7 +534,7 @@ fn ota_flash(ip: &Ip) -> Result<()> {
     let mut app_chunk = [0; 4096];
     let mut eof = 1;
     let mut downloaded_bytes = 0;
-    for stream in listener.incoming() {
+    if let Some(stream) = listener.incoming().next() {
         let mut stream = stream?;
         println!("Connection established: {:?}", stream);
         while eof != 0 {
@@ -558,7 +546,6 @@ fn ota_flash(ip: &Ip) -> Result<()> {
                 ota.write(&app_chunk[0..eof])?;
             }
         }
-        break;
     }
     FreeRtos::delay_ms(11);
     // Performs validation of the newly written app image and completes the OTA update.
