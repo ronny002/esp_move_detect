@@ -1,7 +1,8 @@
-use std::io::Read;
+use std::io::{Read, self};
 use std::net::{TcpListener, UdpSocket};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use std::net::ToSocketAddrs;
 
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::gpio::{Level, PinDriver, Pull};
@@ -25,7 +26,7 @@ use embedded_svc::wifi::{
     AccessPointConfiguration, ClientConfiguration, Configuration as WifiConfig, Wifi,
 };
 
-use anyhow::Result;
+use anyhow::{Result, Error};
 
 #[cfg(not(feature = "qemu"))]
 mod wifi_info;
@@ -33,10 +34,11 @@ mod wifi_info;
 use wifi_info::*;
 
 #[derive(Clone)]
-struct Ip {
-    own: Ipv4Addr,
-    server: Ipv4Addr,
-    server_udp_port: String
+struct Network {
+    ip_own_target: Ipv4Addr,
+    ip_own_ap: Ipv4Addr,
+    ip_server_udp: Ipv4Addr,
+    port_server_udp: String,
 }
 #[derive(PartialEq, Debug, Clone)]
 enum States {
@@ -75,8 +77,9 @@ fn main() {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
-    let version = String::from("version 1.0.3");
+    let version = String::from("version 1.0.4");
     println!("---------------start {}---------------", version);
+    println!("---------------set up gpio---------------");
     let peripherals = Peripherals::take().unwrap();
     let mut move_input_pin =
         PinDriver::input(peripherals.pins.gpio17).expect("couldn't set gpio 17 to input");
@@ -87,7 +90,7 @@ fn main() {
         PinDriver::output(peripherals.pins.gpio18).expect("couldn't set gpio 18 to input");
 
     println!("---------------set up wifi---------------");
-    println!("SSID: {}", SSID);
+    println!("connecting to SSID: {}", SSID_TARGET);
     let sysloop = EspSystemEventLoop::take().unwrap();
     #[cfg(not(feature = "qemu"))]
     let mut wifi = wifi(peripherals.modem, sysloop).expect("couldn't connect to wifi");
@@ -106,29 +109,31 @@ fn main() {
     #[cfg(esp_idf_lwip_ipv4_napt)]
     enable_napt(&mut wifi).expect("couldn't enable napt");
     #[cfg(not(feature = "qemu"))]
-    let ip = Ip {
-        own: wifi.sta_netif().get_ip_info().unwrap().ip,
-        server: "192.168.1.38".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
-        server_udp_port: "4004".into()
+    let network_info = Network {
+        ip_own_target: wifi.sta_netif().get_ip_info().unwrap().ip,
+        ip_own_ap: wifi.ap_netif().get_ip_info().unwrap().ip,
+        ip_server_udp: UDP_SERVER_IP.parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+        port_server_udp: UDP_SERVER_PORT.into()
     };
     #[cfg(feature = "qemu")]
-    let ip = Ip {
-        own: eth.netif().get_ip_info().unwrap().ip,
-        server: "192.168.1.45".parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
-        server_udp_port: "4003".into()
+    let network_info = Network {
+        ip_own_target: eth.netif().get_ip_info().unwrap().ip,
+        ip_own_ap: "0.0.0.0".parse::<Ipv4Addr>().unwrap(),
+        ip_server_udp: UDP_SERVER_IP.parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+        port_server_udp: UDP_SERVER_PORT.into()
     };
     #[cfg(not(feature = "qemu"))]
-    ping(ip.server).unwrap();
+    ping(network_info.ip_server_udp).unwrap();
 
     println!("---------------set up http_server---------------");
     let mut command;
-    let (http_server, command_main) = http_server(ip.clone(), version).unwrap();
+    let (http_server, command_main) = http_server(network_info.clone(), version).unwrap();
 
     println!("---------------set up udp---------------");
     let socket =
-        UdpSocket::bind(format!("{}:4002", ip.own)).expect("socket couldn't bind to address");
+        UdpSocket::bind(format!("{}:4002", network_info.ip_own_target)).expect("socket couldn't bind to address");
     socket
-        .connect(format!("{}:{}", ip.server, ip.server_udp_port)) 
+        .connect(format!("{}:{}", network_info.ip_server_udp, network_info.port_server_udp)) 
         .expect("socket connect function failed");
 
     println!("---------------start loop---------------");
@@ -142,7 +147,7 @@ fn main() {
         if command.ota == true {
             println!("---------------start ota---------------");
             //drop(http_server);
-            ota_flash(&ip).expect("ota failed");
+            ota_flash(&network_info).expect("ota failed");
         }
         if command.status == States::Pause {
             FreeRtos::delay_ms(100);
@@ -191,7 +196,7 @@ fn main() {
         }
     }
 }
-fn http_server(ip: Ip, version: String) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
+fn http_server(network_info: Network, version: String) -> Result<(EspHttpServer, Arc<Mutex<Commands>>)> {
     let command_fn = Arc::new(Mutex::new(Commands::default()));
     let command_thread0 = Arc::clone(&command_fn);
     let command_thread1 = Arc::clone(&command_fn);
@@ -211,8 +216,9 @@ fn http_server(ip: Ip, version: String) -> Result<(EspHttpServer, Arc<Mutex<Comm
             let html = index_html(format!(
                 r#"
                 Esp32 presence detection {} <br> <br>
-                own: {}, server: {} <br>
-                UDP port: 4002 -> 4003 <br>
+                own ip in target network: {}, server ip: {} <br>
+                own ip in ap network: {} <br>
+                UDP port: 4002 -> {} <br>
                 OTA TCP port: 5003 <br>
                 HTTP port: 80 <br> <br>
                 sensor input: {}, esp output: {} <br> <br>
@@ -248,8 +254,10 @@ fn http_server(ip: Ip, version: String) -> Result<(EspHttpServer, Arc<Mutex<Comm
                 </form>
             "#,
                 version,
-                ip.own.clone(),
-                ip.server.clone(),
+                network_info.ip_own_target,
+                network_info.ip_server_udp,
+                network_info.ip_own_ap,
+                network_info.port_server_udp,
                 command.sensor_input,
                 command.esp_output,
                 command.status,
@@ -395,18 +403,18 @@ fn wifi(
 
     let ap_infos = wifi.scan()?;
 
-    let ours = ap_infos.into_iter().find(|a| a.ssid == SSID);
+    let ours = ap_infos.into_iter().find(|a| a.ssid == SSID_TARGET);
 
     let channel = if let Some(ours) = ours {
         println!(
             "Found configured access point {} on channel {}",
-            SSID, ours.channel
+            SSID_TARGET, ours.channel
         );
         Some(ours.channel)
     } else {
         println!(
             "Configured access point {} not found during scanning, will go with unknown channel",
-            SSID
+            SSID_TARGET
         );
         None
     };
@@ -414,8 +422,8 @@ fn wifi(
     #[cfg(esp_idf_lwip_ipv4_napt)]
     wifi.set_configuration(&WifiConfig::Mixed(
         ClientConfiguration {
-            ssid: SSID.into(),
-            password: PASS.into(),
+            ssid: SSID_TARGET.into(),
+            password: PASS_TARGET.into(),
             channel,
             ..Default::default()
         },
@@ -431,8 +439,8 @@ fn wifi(
     #[cfg (not(esp_idf_lwip_ipv4_napt))]
     wifi.set_configuration(&WifiConfig::Client(
         ClientConfiguration {
-            ssid: SSID.into(),
-            password: PASS.into(),
+            ssid: SSID_TARGET.into(),
+            password: PASS_TARGET.into(),
             channel,
             ..Default::default()
         }
@@ -526,27 +534,74 @@ fn eth_configure(
     Ok(eth)
 }
 //from https://github.com/faern/esp-ota/tree/e73cf6f3959ab41ecdb459851e878946ebbb7363/
-fn ota_flash(ip: &Ip) -> Result<()> {
+fn ota_flash(network_info: &Network) -> Result<()> {
     // Finds the next suitable OTA partition and erases it
     let mut ota = esp_ota::OtaUpdate::begin()?;
     //download new app
-    let listener = TcpListener::bind(format!("{}:5003", ip.own))?;
+    let listener_target = TcpListener::bind(format!("{}:5003", network_info.ip_own_target))?;
+    listener_target.set_nonblocking(true).expect("Cannot set non-blocking for target network");
+    let listener_ap = TcpListener::bind(format!("{}:5003", network_info.ip_own_ap))?;
+    listener_ap.set_nonblocking(true).expect("Cannot set non-blocking for ap network");
     let mut app_chunk = [0; 4096];
     let mut eof = 1;
     let mut downloaded_bytes = 0;
-    if let Some(stream) = listener.incoming().next() {
-        let mut stream = stream?;
-        println!("Connection established: {:?}", stream);
-        while eof != 0 {
-            FreeRtos::delay_ms(11);
-            eof = stream.read(&mut app_chunk[..])?;
-            if eof != 0 {
-                downloaded_bytes += app_chunk[0..eof].len();
-                println!("{}", downloaded_bytes);
-                ota.write(&app_chunk[0..eof])?;
-            }
+    let mut try_count = 0;
+//maybe use threads???
+    for stream in listener_target.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                println!("Connection established: {:?}", stream);
+                while eof != 0 {
+                    FreeRtos::delay_ms(11);
+                    eof = stream.read(&mut app_chunk[..])?;
+                    if eof != 0 {
+                        downloaded_bytes += app_chunk[0..eof].len();
+                        println!("{}", downloaded_bytes);
+                        ota.write(&app_chunk[0..eof])?;
+                    }
+                }
+            },
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+    FreeRtos::delay_ms(150);
+                try_count += 1;
+                if try_count > 80 {
+                    break;
+                }
+                else{
+                    continue;
+                }
+            },
+            Err(e) => panic!("encountered IO error: {}", e),
         }
     }
+    for stream in listener_ap.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                println!("Connection established: {:?}", stream);
+                while eof != 0 {
+                    FreeRtos::delay_ms(11);
+                    eof = stream.read(&mut app_chunk[..])?;
+                    if eof != 0 {
+                        downloaded_bytes += app_chunk[0..eof].len();
+                        println!("{}", downloaded_bytes);
+                        ota.write(&app_chunk[0..eof])?;
+                    }
+                }
+            },
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+    FreeRtos::delay_ms(150);
+                try_count += 1;
+                if try_count > 80 {
+                    break;
+                }
+                else{
+                    continue;
+                }
+            },
+            Err(e) => panic!("encountered IO error: {}", e),
+        }
+    }
+
     FreeRtos::delay_ms(11);
     // Performs validation of the newly written app image and completes the OTA update.
     let mut completed_ota = ota.finalize()?;

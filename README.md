@@ -101,10 +101,10 @@ hint to cargo espflash: qemu bin needs --merge, ota bin no --merge
 https://onecompiler.com/html/3z2tt824q
 
 ## NAPT Router
-When esp is far away from wifi router, it's possible to use different esp closer to wifi as wifi extender. Udp packets comming from esp far out are forwarded over esp wifi extender to loxone server
+When esp is far away from wifi router, it's possible to use different esp closer to wifi as wifi extender. Udp packets comming from esp far out are forwarded over esp wifi extender to loxone server. Internet is also forwarded.
 
-- to configure esp as wifi extender uncommend everything after `NAPT demo (router)` in rust-bin/sdkconfig.defaults 
-- wifi extender hosts `esp32_presence_detector` wifi, set password in wifi_info_fill_out.rs 
+- to configure esp as wifi extender uncommend everything after `NAPT demo (router)` in `rust-bin/sdkconfig.defaults` 
+- wifi extender hosts `esp32_presence_detector` wifi (referred as ap), set password in wifi_info_fill_out.rs 
 - esp far out needs to change target wifi to `esp32_presence_detector`
 - to access http server of esp far out connect to `esp32_presence_detector` wifi and use 192.168.71.2
 
@@ -118,6 +118,8 @@ When esp is far away from wifi router, it's possible to use different esp closer
 - monitor over wifi
 - not working with high amps
 - low/high toggles with movement present when small follow-up time
+- wrong ip as napt client
+- UDP port: 4002 -> 4003 <br> hard coded in html
 
 ## Solved Problems
 Problem rust-analyser can't find clang: \
