@@ -46,7 +46,7 @@ rustup override set esp
 ```
 load env vars (once per terminal session)
 ```
-. $HOME/export-esp.sh
+source ~/export-esp.sh
 ```
 ## Run with Qemu
 build app.bin see https://esp-rs.github.io/book/tooling/simulating/qemu.html \
@@ -77,7 +77,7 @@ sudo chmod 666 /dev/ttyUSB0
 ```
 build, flash and monitor
 ```
-. $HOME/export-esp.sh
+source ~/export-esp.sh
 cargo espflash --release --monitor /dev/ttyUSB0
 ```
 only monitor
@@ -87,7 +87,7 @@ espflash serial-monitor /dev/ttyUSB0
 ## ota
 Do not forget
 ```
-. $HOME/export-esp.sh
+source ~/export-esp.sh or source export-esp.nu
 ```
 build ota app
 ```
@@ -106,7 +106,7 @@ When esp is far away from wifi router, it's possible to use different esp closer
 - to configure esp as wifi extender uncommend everything after `NAPT demo (router)` in `rust-bin/sdkconfig.defaults` 
 - wifi extender hosts `esp32_presence_detector` wifi (referred as ap), set password in wifi_info_fill_out.rs 
 - esp far out needs to change target wifi to `esp32_presence_detector`
-- to access http server of esp far out connect to `esp32_presence_detector` wifi and use 192.168.71.2
+- to access http server of esp far out connect to `esp32_presence_detector` wifi and use 192.168.71.2 in browser
 
 ## To Do
 - qemu: hangs after esp_restart() so not possible to simulate ota flash
@@ -116,10 +116,8 @@ When esp is far away from wifi router, it's possible to use different esp closer
 - increase features of html website
 - schematics
 - monitor over wifi
-- not working with high amps
+- not working with high amps???
 - low/high toggles with movement present when small follow-up time
-- wrong ip as napt client
-- UDP port: 4002 -> 4003 <br> hard coded in html
 
 ## Solved Problems
 Problem rust-analyser can't find clang: \
