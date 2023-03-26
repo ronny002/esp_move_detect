@@ -47,7 +47,7 @@ source ~/export-esp.sh
 ```
 - or if you use nushell
 ```
-source ~/esp_move_detect/rust_bin/export-esp.nu
+source export-esp.nu
 ```
 ## Run with Qemu
 build app.bin see https://esp-rs.github.io/book/tooling/simulating/qemu.html \
@@ -87,7 +87,7 @@ espflash serial-monitor /dev/ttyUSB0
 ## ota
 Do not forget
 ```
-source ~/export-esp.sh or source ~/esp_move_detect/rust_bin/export-esp.nu
+source ~/export-esp.sh or source export-esp.nu
 ```
 build ota app
 ```

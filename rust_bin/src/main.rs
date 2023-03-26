@@ -77,7 +77,7 @@ fn main() {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
-    let version = String::from("version 1.0.4");
+    let version = String::from("version 1.0.5");
     println!("---------------start {}---------------", version);
     println!("---------------set up gpio---------------");
     let peripherals = Peripherals::take().unwrap();
@@ -334,7 +334,7 @@ fn http_server(network_info: Network, version: String) -> Result<(EspHttpServer,
         })?
         .fn_handler("/favicon.ico", Method::Get, move |request| {
             const ICON: &[u8] = include_bytes!(
-                "/home/ronny/Documents/code/rust/esp_move_detect/rust-bin/favicon.ico"
+                "favicon.ico"
             );
             request.into_ok_response()?.write_all(ICON)?;
             Ok(())
@@ -541,16 +541,17 @@ fn ota_flash(network_info: &Network) -> Result<()> {
     let listener_target = TcpListener::bind(format!("{}:5003", network_info.ip_own_target))?;
     listener_target.set_nonblocking(true).expect("Cannot set non-blocking for target network");
     let listener_ap = TcpListener::bind(format!("{}:5003", network_info.ip_own_ap))?;
-    listener_ap.set_nonblocking(true).expect("Cannot set non-blocking for ap network");
     let mut app_chunk = [0; 4096];
     let mut eof = 1;
     let mut downloaded_bytes = 0;
     let mut try_count = 0;
+
+    listener_ap.set_nonblocking(true).expect("Cannot set non-blocking for ap network");
 //maybe use threads???
     for stream in listener_target.incoming() {
         match stream {
             Ok(mut stream) => {
-                println!("Connection established: {:?}", stream);
+                println!("Connection established to ota-downloader: {:?}", stream);
                 while eof != 0 {
                     FreeRtos::delay_ms(11);
                     eof = stream.read(&mut app_chunk[..])?;
@@ -571,13 +572,13 @@ fn ota_flash(network_info: &Network) -> Result<()> {
                     continue;
                 }
             },
-            Err(e) => panic!("encountered IO error: {}", e),
+            Err(e) => panic!("ota-downloader not connected: {}", e),
         }
     }
     for stream in listener_ap.incoming() {
         match stream {
             Ok(mut stream) => {
-                println!("Connection established: {:?}", stream);
+                println!("Connection established to ota-downloader: {:?}", stream);
                 while eof != 0 {
                     FreeRtos::delay_ms(11);
                     eof = stream.read(&mut app_chunk[..])?;
@@ -598,7 +599,7 @@ fn ota_flash(network_info: &Network) -> Result<()> {
                     continue;
                 }
             },
-            Err(e) => panic!("encountered IO error: {}", e),
+            Err(e) => panic!("ota-downloader not connected: {}", e),
         }
     }
 
@@ -609,6 +610,6 @@ fn ota_flash(network_info: &Network) -> Result<()> {
     // Sets the newly written to partition as the next partition to boot from.
     completed_ota.set_as_boot_partition()?;
     // Restarts the CPU, booting into the newly written app.
-    println!("----------Restart----------");
+    println!("----------Ota done. Restart----------");
     completed_ota.restart();
 }
