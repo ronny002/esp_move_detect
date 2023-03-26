@@ -1,4 +1,4 @@
 /qemu
 /.ipynb_checkpoints
 jupyter_rust.ipynb
-/ota-downloader-wasm
+ota-downloader-wasm/www
