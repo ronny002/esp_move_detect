@@ -112,14 +112,14 @@ fn main() {
     let network_info = Network {
         ip_own_target: wifi.sta_netif().get_ip_info().unwrap().ip,
         ip_own_ap: wifi.ap_netif().get_ip_info().unwrap().ip,
-        ip_server_udp: UDP_SERVER_IP.parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+        ip_server_udp: UDP_SERVER_IP.parse::<Ipv4Addr>().unwrap(), 
         port_server_udp: UDP_SERVER_PORT.into()
     };
     #[cfg(feature = "qemu")]
     let network_info = Network {
         ip_own_target: eth.netif().get_ip_info().unwrap().ip,
         ip_own_ap: "0.0.0.0".parse::<Ipv4Addr>().unwrap(),
-        ip_server_udp: UDP_SERVER_IP.parse::<Ipv4Addr>().unwrap(), //server ip loxone 192.168.1.222
+        ip_server_udp: UDP_SERVER_IP.parse::<Ipv4Addr>().unwrap(), 
         port_server_udp: UDP_SERVER_PORT.into()
     };
     #[cfg(not(feature = "qemu"))]

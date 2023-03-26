@@ -1,1 +1,1 @@
-/home/ronny/Documents/code/rust/esp_move_detect/ota-downloader/target/debug/ota-downloader: /home/ronny/Documents/code/rust/esp_move_detect/ota-downloader/src/main.rs /home/ronny/Documents/code/rust/esp_move_detect/rust-bin/app_ota.bin
+/home/ronny/Documents/code/rust/esp_move_detect/ota-downloader/target/debug/ota-downloader: /home/ronny/Documents/code/rust/esp_move_detect/ota-downloader/src/main.rs

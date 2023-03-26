@@ -25,7 +25,7 @@ build
 ```
 ninja -C build
 ```
-## esp-idf-template
+## Set up toolchain and project
 get toolchain see prerequisites at https://github.com/esp-rs/esp-idf-template#prerequisites and \
 https://docs.espressif.com/projects/esp-idf/en/v4.4.1/esp32/get-started/linux-setup.html 
 ```
@@ -36,17 +36,21 @@ cargo install espflash
 cargo install cargo-espflash
 espup install
 ```
-new project 
+clone git repo
 ```
-cargo generate https://github.com/esp-rs/esp-idf-template cargo
+git clone https://github.com/ronny002/esp_move_detect
 ```
 set toolchain to esp for the current project. not needed because of rust-toolchain.toml
 ```
 rustup override set esp
 ```
-load env vars (once per terminal session)
+Bash: load env vars (once per terminal session)
 ```
 source ~/export-esp.sh
+```
+nushell: load env vars (once per terminal session)
+```
+source export-esp.nu
 ```
 ## Run with Qemu
 build app.bin see https://esp-rs.github.io/book/tooling/simulating/qemu.html \
@@ -77,7 +81,6 @@ sudo chmod 666 /dev/ttyUSB0
 ```
 build, flash and monitor
 ```
-source ~/export-esp.sh
 cargo espflash --release --monitor /dev/ttyUSB0
 ```
 only monitor
