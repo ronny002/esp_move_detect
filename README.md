@@ -40,17 +40,14 @@ clone git repo
 ```
 git clone https://github.com/ronny002/esp_move_detect
 ```
-set toolchain to esp for the current project. not needed because of rust-toolchain.toml
-```
-rustup override set esp
-```
-Bash: load env vars (once per terminal session)
+load env vars (once per terminal session) 
+- Bash: 
 ```
 source ~/export-esp.sh
 ```
-nushell: load env vars (once per terminal session)
+- or if you use nushell
 ```
-source export-esp.nu
+source ~/esp_move_detect/rust_bin/export-esp.nu
 ```
 ## Run with Qemu
 build app.bin see https://esp-rs.github.io/book/tooling/simulating/qemu.html \
@@ -90,7 +87,7 @@ espflash serial-monitor /dev/ttyUSB0
 ## ota
 Do not forget
 ```
-source ~/export-esp.sh or source export-esp.nu
+source ~/export-esp.sh or source ~/esp_move_detect/rust_bin/export-esp.nu
 ```
 build ota app
 ```
