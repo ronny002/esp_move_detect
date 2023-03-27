@@ -109,14 +109,14 @@ When esp is far away from wifi router, it's possible to use different esp closer
 - to access http server of esp far out connect to `esp32_presence_detector` wifi and use 192.168.71.2 in browser
 
 ## To Do
-- qemu: hangs after esp_restart() so not possible to simulate ota flash
+- monitor serial over wifi
+- schematics
 - movement detection sensitivity (connect pwm instead poti?)
 - test and improve UX
 - licences
 - increase features of html website
-- schematics
-- monitor over wifi
 - not working with high amps???
+- qemu: hangs after esp_restart() so not possible to simulate ota flash
 - low/high toggles with movement present when small follow-up time
 
 ## Solved Problems
