@@ -108,6 +108,8 @@ When esp is far away from wifi router, it's possible to use different esp closer
 - esp far out needs to change target wifi to `esp32_presence_detector`
 - to access http server of esp far out connect to `esp32_presence_detector` wifi and use 192.168.71.2 in browser
 
+<img src="https://github.com/ronny002/esp_move_detect/blob/master/planning/NAPT_overview.excalidraw.svg" width="500" height="500">
+
 ## To Do
 - monitor serial over wifi
 - schematics
