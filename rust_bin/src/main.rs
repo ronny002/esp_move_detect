@@ -82,12 +82,12 @@ fn main() {
     println!("---------------set up gpio---------------");
     let peripherals = Peripherals::take().unwrap();
     let mut move_input_pin =
-        PinDriver::input(peripherals.pins.gpio17).expect("couldn't set gpio 17 to input");
+        PinDriver::input(peripherals.pins.gpio32).expect("couldn't set gpio IR sensor to input");
     move_input_pin
         .set_pull(Pull::Down)
         .expect("couldn't set input pin to pull down");
     let mut move_output_pin =
-        PinDriver::output(peripherals.pins.gpio18).expect("couldn't set gpio 18 to input");
+        PinDriver::output(peripherals.pins.gpio33).expect("couldn't set gpio test LED to input");
 
     println!("---------------set up wifi---------------");
     println!("connecting to SSID: {}", SSID_TARGET);
@@ -127,7 +127,7 @@ fn main() {
 
     println!("---------------set up http_server---------------");
     let mut command;
-    let (http_server, command_main) = http_server(network_info.clone(), version).unwrap();
+    let (_http_server, command_main) = http_server(network_info.clone(), version).unwrap();
 
     println!("---------------set up udp---------------");
     let socket =
@@ -146,7 +146,6 @@ fn main() {
         drop(command_mutex);
         if command.ota == true {
             println!("---------------start ota---------------");
-            //drop(http_server);
             ota_flash(&network_info).expect("ota failed");
         }
         if command.status == States::Pause {
@@ -392,13 +391,15 @@ fn wifi(
     sysloop: EspSystemEventLoop,
 ) -> Result<Box<EspWifi<'static>>> {
     use embedded_svc::wifi::AuthMethod;
+    use embedded_svc::ipv4::{RouterConfiguration, Subnet, Mask};
+    use esp_idf_svc::netif::NetifConfiguration;
 
     let mut wifi = Box::new(EspWifi::new(
         modem,
         sysloop.clone(),
         EspDefaultNvsPartition::take().ok(),
     )?);
-
+    
     println!("Wifi created, about to scan");
 
     let ap_infos = wifi.scan()?;
@@ -445,7 +446,20 @@ fn wifi(
             ..Default::default()
         }
     ))?;
-
+    let a = wifi.ap_netif_mut();
+    println!("{:?}", a);
+    //EspNetif(0x3ffc5da8)
+//     let a = 
+//         RouterConfiguration {
+//             subnet: Subnet {
+    //                 gateway: Ipv4Addr::new(192, 168, 71, 1),
+    //                 mask: Mask(24),
+    //             },
+    //             dhcp_enabled: true,
+    //             dns: Some(Ipv4Addr::new(8, 8, 8, 8)),
+    //             secondary_dns: Some(Ipv4Addr::new(8, 8, 4, 4)),
+    //         };
+    //    let a = NetifConfiguration::wifi_default_router();
     wifi.start()?;
 
     println!("Starting wifi...");
@@ -483,7 +497,11 @@ fn ping(ip: Ipv4Addr) -> Result<()> {
 
     let ping_summary = EspPing::default().ping(ip, &Default::default())?;
     if ping_summary.transmitted != ping_summary.received {
-        println!("Pinging IP {} resulted in timeouts", ip);
+        println!("Pinging IP {} resulted in timeouts, restart", ip);
+        // unsafe {
+        //     esp_restart();
+        //     unreachable!("esp_restart returned");
+        // }
     }
 
     println!("Pinging done");
@@ -493,7 +511,7 @@ fn ping(ip: Ipv4Addr) -> Result<()> {
 #[cfg(not(feature = "qemu"))]
 #[cfg(esp_idf_lwip_ipv4_napt)]
 fn enable_napt(wifi: &mut EspWifi) -> Result<()> {
-    wifi.ap_netif_mut().enable_napt(true);
+            wifi.ap_netif_mut().enable_napt(true);
 
     println!("NAPT enabled on the WiFi SoftAP!");
 
@@ -563,7 +581,7 @@ fn ota_flash(network_info: &Network) -> Result<()> {
                 }
             },
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-    FreeRtos::delay_ms(150);
+    FreeRtos::delay_ms(200);
                 try_count += 1;
                 if try_count > 80 {
                     break;
@@ -575,33 +593,33 @@ fn ota_flash(network_info: &Network) -> Result<()> {
             Err(e) => panic!("ota-downloader not connected: {}", e),
         }
     }
-    for stream in listener_ap.incoming() {
-        match stream {
-            Ok(mut stream) => {
-                println!("Connection established to ota-downloader: {:?}", stream);
-                while eof != 0 {
-                    FreeRtos::delay_ms(11);
-                    eof = stream.read(&mut app_chunk[..])?;
-                    if eof != 0 {
-                        downloaded_bytes += app_chunk[0..eof].len();
-                        println!("{}", downloaded_bytes);
-                        ota.write(&app_chunk[0..eof])?;
-                    }
-                }
-            },
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-    FreeRtos::delay_ms(150);
-                try_count += 1;
-                if try_count > 80 {
-                    break;
-                }
-                else{
-                    continue;
-                }
-            },
-            Err(e) => panic!("ota-downloader not connected: {}", e),
-        }
-    }
+    // for stream in listener_ap.incoming() {
+    //     match stream {
+    //         Ok(mut stream) => {
+    //             println!("Connection established to ota-downloader: {:?}", stream);
+    //             while eof != 0 {
+    //                 FreeRtos::delay_ms(11);
+    //                 eof = stream.read(&mut app_chunk[..])?;
+    //                 if eof != 0 {
+    //                     downloaded_bytes += app_chunk[0..eof].len();
+    //                     println!("{}", downloaded_bytes);
+    //                     ota.write(&app_chunk[0..eof])?;
+    //                 }
+    //             }
+    //         },
+    //         Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+    // FreeRtos::delay_ms(150);
+    //             try_count += 1;
+    //             if try_count > 80 {
+    //                 break;
+    //             }
+    //             else{
+    //                 continue;
+    //             }
+    //         },
+    //         Err(e) => panic!("ota-downloader not connected: {}", e),
+    //     }
+    // }
 
     FreeRtos::delay_ms(11);
     // Performs validation of the newly written app image and completes the OTA update.

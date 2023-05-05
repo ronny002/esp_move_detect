@@ -1,7 +1,8 @@
 # Rust program for Esp32 to detect movement via IR sensor
 Esp32 program which uses a HW-416 passive infra red sensor (5V) to detect movement and sends the sensor state to Loxone server using udp. Also the Esp hosts a http server, so the user can change settings on the esp through a browser. Ota firmware flashing from target and ap network is implemented.
 
-IR sensor: G17
+IR sensor: GPIO32
+Test LED: GPIO33
 
 ## Set up QEMU to simulate Esp32 hardware
 build prerequisites see https://wiki.qemu.org/Hosts/Linux
@@ -108,9 +109,15 @@ When esp is far away from wifi router, it's possible to use different esp closer
 - esp far out needs to change target wifi to `esp32_presence_detector`
 - to access http server of esp far out connect to `esp32_presence_detector` wifi and use 192.168.71.2 in browser
 
+After changing settings use to rebuild lib
+```
+cargo clean -p embedded-svc v0.23.2 not working
+```
+
 <img src="https://github.com/ronny002/esp_move_detect/blob/master/planning/NAPT_overview.excalidraw.svg" width="500" height="500">
 
 ## To Do
+- html list of ap clients
 - monitor serial over wifi
 - schematics
 - movement detection sensitivity (connect pwm instead poti?)
@@ -120,7 +127,8 @@ When esp is far away from wifi router, it's possible to use different esp closer
 - not working with high amps???
 - qemu: hangs after esp_restart() so not possible to simulate ota flash
 - low/high toggles with movement present when small follow-up time
-
+- W (12889) httpd_txrx: httpd_sock_err: error in send : 104
+thread '<unnamed>' panicked at 'connection is not in request phase', /home/ronny/.cargo/registry/src/github.com-1ecc6299db9ec823/esp-idf-svc-0.43.5/src/http/server.rs:838:13
 ## Solved Problems
 Problem rust-analyser can't find clang: \
 put this in vscode -> user settings (settings.json)
@@ -132,10 +140,11 @@ put this in vscode -> user settings (settings.json)
 see https://githubhelp.com/esp-rs/esp-idf-template/issues/49
 
 ## Resources
-Esp Book https://esp-rs.github.io/book/ \
-Nice example program https://github.com/ivmarkov/rust-esp32-std-demo \
-IR sensor https://electropeak.com/learn/pir-motion-sensor-how-pir-work-how-use-with-arduino/
-Browser Simulate https://wokwi.com/rust
+- Esp Book https://esp-rs.github.io/book/ 
+- Nice example program https://github.com/ivmarkov/rust-esp32-std-demo 
+- IR sensor https://electropeak.com/learn/pir-motion-sensor-how-pir-work-how-use-with-arduino/
+- Browser Simulate https://wokwi.com/rust
+- CONFIG in sdkconfig.defaults https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig.html#component-config-lwip-dhcp-server
 
 
 
